@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter_hbb/common.dart';
@@ -381,6 +382,10 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
   Timer? _tapDownTimer;
   final Duration _pressTimeout = const Duration(milliseconds: 200);
   bool _isDragging = false;
+  // StaticDesk: raw touch input almost never reports zero movement during a
+  // tap, so without a deadzone here every tap was immediately reclassified
+  // as a drag (canceling the tap timer) and the click never fired.
+  Offset _moveAccumulator = Offset.zero;
 
   bool get _isLeft => widget.isLeft;
   InputModel get _inputModel => widget.inputModel;
@@ -515,12 +520,23 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
   }
 
   void _onBodyPointerMoveUpdate(PointerMoveEvent event) {
+    if (!_isDragging) {
+      // Absorb small jitter so a stationary tap isn't misread as a drag.
+      _moveAccumulator += event.delta;
+      if (_moveAccumulator.distance < kTouchSlop) {
+        return;
+      }
+      _cursorModel.blockEvents = true;
+      _isDragging = true;
+      // Cancel the timer to prevent it from being recognized as a tap/hold.
+      _tapDownTimer?.cancel();
+      _tapDownTimer = null;
+      // Apply the accumulated movement now, so the button doesn't jump once
+      // the threshold is crossed.
+      _onMoveUpdateDelta(_moveAccumulator);
+      return;
+    }
     _cursorModel.blockEvents = true;
-    // If move, it's a drag, not a tap.
-    _isDragging = true;
-    // Cancel the timer to prevent it from being recognized as a tap/hold.
-    _tapDownTimer?.cancel();
-    _tapDownTimer = null;
     _onMoveUpdateDelta(event.delta);
   }
 
@@ -570,6 +586,7 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
         onPointerMove: _onBodyPointerMoveUpdate,
         onPointerDown: (event) async {
           _isDragging = false;
+          _moveAccumulator = Offset.zero;
           setState(() {
             _isDown = true;
           });

@@ -110,6 +110,32 @@ class _RawTouchGestureDetectorRegionState
   // Cache global position for onTap (which lacks position info).
   Offset? _lastTapDownGlobalPosition;
 
+  // StaticDesk: press-and-drag deadzone. The remote cursor only starts
+  // following the finger/mouse once the drag has moved past
+  // `_dragThreshold` logical pixels from where the drag began.
+  Offset _dragAccumulatedDelta = Offset.zero;
+  bool _dragThresholdMet = false;
+  double get _dragThreshold {
+    final opt = bind.mainGetLocalOption(key: kOptionDragThreshold);
+    final v = double.tryParse(opt);
+    return (v == null || v < 0) ? kDefaultDragThreshold : v;
+  }
+
+  // Returns false while the drag should still be suppressed (within the
+  // deadzone). Called once per pan/drag update event.
+  bool _admitDragUpdate(Offset delta) {
+    if (_dragThresholdMet) return true;
+    _dragAccumulatedDelta += delta;
+    if (_dragAccumulatedDelta.distance < _dragThreshold) return false;
+    _dragThresholdMet = true;
+    return true;
+  }
+
+  void _resetDragThreshold() {
+    _dragAccumulatedDelta = Offset.zero;
+    _dragThresholdMet = false;
+  }
+
   FFI get ffi => widget.ffi;
   FfiModel get ffiModel => widget.ffiModel;
   InputModel get inputModel => widget.inputModel;
@@ -189,7 +215,11 @@ class _RawTouchGestureDetectorRegionState
       if (shouldBlockMouseModeEvent()) {
         return;
       }
-      // Mobile, "Mouse mode"
+      // Mobile, "Mouse mode". StaticDesk: re-sync the remote cursor to
+      // wherever the on-screen cursor indicator currently is before
+      // clicking, rather than relying on whatever position the remote
+      // side was last nudged to via relative-move deltas.
+      await ffi.cursorModel.syncCursorPosition();
       await inputModel.tap(MouseButtons.left);
     }
   }
@@ -328,6 +358,7 @@ class _RawTouchGestureDetectorRegionState
     }
     if (!handleTouch) {
       if (isSpecialHoldDragActive) return;
+      _resetDragThreshold();
       await inputModel.sendMouse('down', MouseButtons.left);
     }
   }
@@ -338,6 +369,7 @@ class _RawTouchGestureDetectorRegionState
     }
     if (!handleTouch) {
       if (isSpecialHoldDragActive) return;
+      if (!_admitDragUpdate(d.delta)) return;
       await ffi.cursorModel.updatePan(d.delta, d.localPosition, handleTouch);
     }
   }
@@ -347,6 +379,7 @@ class _RawTouchGestureDetectorRegionState
       return;
     }
     if (!handleTouch) {
+      _resetDragThreshold();
       await inputModel.sendMouse('up', MouseButtons.left);
     }
   }
@@ -371,6 +404,7 @@ class _RawTouchGestureDetectorRegionState
       }
 
       _touchModePanStarted = true;
+      _resetDragThreshold();
       if (isDesktop || isWebDesktop) {
         ffi.cursorModel.trySetRemoteWindowCoords();
       }
@@ -413,6 +447,7 @@ class _RawTouchGestureDetectorRegionState
     if (handleTouch && !_touchModePanStarted) {
       return;
     }
+    if (!_admitDragUpdate(d.delta)) return;
     // In relative mouse mode, send delta directly without position tracking.
     if (inputModel.relativeMouseMode.value) {
       await inputModel.sendMobileRelativeMouseMove(d.delta.dx, d.delta.dy);
@@ -423,6 +458,7 @@ class _RawTouchGestureDetectorRegionState
 
   onOneFingerPanEnd(DragEndDetails d) async {
     _touchModePanStarted = false;
+    _resetDragThreshold();
     if (isNotTouchBasedDevice()) {
       return;
     }

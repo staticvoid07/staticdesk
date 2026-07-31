@@ -554,7 +554,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     final ffiModel = Provider.of<FfiModel>(context);
     return BottomAppBar(
       elevation: 10,
-      color: MyTheme.accent,
+      color: Colors.black,
       child: Row(
         mainAxisSize: MainAxisSize.max,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

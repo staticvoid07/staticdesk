@@ -143,6 +143,10 @@ const String kOptionDisableClipboard = "disable_clipboard";
 const String kOptionLockAfterSessionEnd = "lock_after_session_end";
 const String kOptionPrivacyMode = "privacy_mode";
 const String kOptionTouchMode = "touch-mode";
+// StaticDesk: minimum drag distance (logical pixels) before a mobile
+// press-and-drag starts moving the remote cursor.
+const String kOptionDragThreshold = "drag-threshold";
+const double kDefaultDragThreshold = 0.0;
 const String kOptionI444 = "i444";
 const String kOptionSwapLeftRightMouse = "swap-left-right-mouse";
 const String kOptionCodecPreference = "codec-preference";

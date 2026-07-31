@@ -754,6 +754,12 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                     setState(callback);
                   });
                 }),
+          SettingsTile(
+              title: Text(translate('Drag threshold')),
+              leading: Icon(Icons.drag_indicator),
+              onPressed: (context) {
+                changeDragThreshold();
+              }),
           if (!_hideNetwork && !_hideProxy)
             SettingsTile(
                 title: Text(translate('Socks5/Http(s) Proxy')),
@@ -1399,4 +1405,53 @@ SettingsTile _getPopupDialogRadioEntry({
       child: Obx(() => Text(translate(valueText.value))),
     ),
   );
+}
+
+/// StaticDesk: how far (in logical pixels) a press-and-drag must travel
+/// before the remote cursor starts following it. See [kOptionDragThreshold].
+void changeDragThreshold() async {
+  final current = bind.mainGetLocalOption(key: kOptionDragThreshold);
+  final controller = TextEditingController(
+      text: current.isEmpty ? kDefaultDragThreshold.toStringAsFixed(0) : current);
+  String errMsg = '';
+  gFFI.dialogManager.show((setState, close, context) {
+    submit() {
+      final text = controller.text.trim();
+      final value = double.tryParse(text);
+      if (value == null || value < 0) {
+        setState(() => errMsg = translate('Invalid value'));
+        return;
+      }
+      bind.mainSetLocalOption(
+          key: kOptionDragThreshold, value: value.toStringAsFixed(1));
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate('Drag threshold')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(translate(
+              'Minimum drag distance in pixels before the remote cursor starts moving.')),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              errorText: errMsg.isEmpty ? null : errMsg,
+              suffixText: 'px',
+            ),
+            onSubmitted: (_) => submit(),
+          ),
+        ],
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('OK', onPressed: submit),
+      ],
+    );
+  }, backDismiss: true, clickMaskDismiss: true);
 }

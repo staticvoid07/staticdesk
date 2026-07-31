@@ -1194,6 +1194,15 @@ pub struct AudioHandler {
     device_channel: u16,
     #[cfg(not(target_os = "linux"))]
     ready: Arc<std::sync::Mutex<bool>>,
+    // StaticDesk: Android's audio route (e.g. a Bluetooth headset connecting
+    // mid-session) can disconnect the currently open output stream without
+    // the app otherwise noticing, leaving audio stuck on the old device.
+    // `build_output_stream`'s error callback flips this so the next frame
+    // rebuilds the stream against the (now current) default output device.
+    #[cfg(target_os = "android")]
+    needs_restart: Arc<std::sync::atomic::AtomicBool>,
+    #[cfg(target_os = "android")]
+    last_audio_format: Option<AudioFormat>,
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -1410,6 +1419,10 @@ impl AudioHandler {
                 let buffer = vec![0.; f.sample_rate as usize * f.channels as usize];
                 self.audio_decoder = Some((d, buffer));
                 self.channels = f.channels as _;
+                #[cfg(target_os = "android")]
+                {
+                    self.last_audio_format = Some(f.clone());
+                }
                 allow_err!(self.start_audio(f));
             }
             Err(err) => {
@@ -1421,6 +1434,16 @@ impl AudioHandler {
     /// Handle audio frame and play it.
     #[inline]
     pub fn handle_frame(&mut self, frame: AudioFrame) {
+        #[cfg(target_os = "android")]
+        if self
+            .needs_restart
+            .swap(false, std::sync::atomic::Ordering::SeqCst)
+        {
+            if let Some(f) = self.last_audio_format.clone() {
+                log::info!("Audio output device changed, rebuilding stream");
+                allow_err!(self.start_audio(f));
+            }
+        }
         #[cfg(not(target_os = "linux"))]
         if self.audio_stream.is_none() || !self.ready.lock().unwrap().clone() {
             return;
@@ -1476,9 +1499,13 @@ impl AudioHandler {
         device: &Device,
     ) -> ResultType<()> {
         self.device_channel = config.channels;
+        #[cfg(target_os = "android")]
+        let needs_restart = self.needs_restart.clone();
         let err_fn = move |err| {
             // too many errors, will improve later
             log::trace!("an error occurred on stream: {}", err);
+            #[cfg(target_os = "android")]
+            needs_restart.store(true, std::sync::atomic::Ordering::SeqCst);
         };
         self.audio_buffer
             .resize(config.sample_rate.0 as _, config.channels as _);
