@@ -595,6 +595,8 @@ class _RawTouchGestureDetectorRegionState
           GestureRecognizerFactoryWithHandlers<HoldTapMoveGestureRecognizer>(
               () => HoldTapMoveGestureRecognizer(),
               (instance) => instance
+                ..isPointerBlocked = (pos) =>
+                    ffi.cursorModel.shouldBlock(pos.dx, pos.dy)
                 ..onHoldDragStart = onHoldDragStart
                 ..onHoldDragUpdate = onHoldDragUpdate
                 ..onHoldDragCancel = onHoldDragCancel
@@ -603,6 +605,8 @@ class _RawTouchGestureDetectorRegionState
           GestureRecognizerFactoryWithHandlers<DoubleFinerTapGestureRecognizer>(
               () => DoubleFinerTapGestureRecognizer(), (instance) {
         instance
+          ..isPointerBlocked = (pos) =>
+              ffi.cursorModel.shouldBlock(pos.dx, pos.dy)
           ..onDoubleFinerTap = onDoubleFinerTap
           ..onDoubleFinerTapDown = onDoubleFinerTapDown;
       }),
@@ -612,6 +616,8 @@ class _RawTouchGestureDetectorRegionState
         instance.onOneFingerPanStart =
             (DragStartDetails d) => onOneFingerPanStart(context, d);
         instance
+          ..isPointerBlocked = (pos) =>
+              ffi.cursorModel.shouldBlock(pos.dx, pos.dy)
           ..onOneFingerPanUpdate = onOneFingerPanUpdate
           ..onOneFingerPanEnd = onOneFingerPanEnd
           ..onOneFingerPanCancel = onOneFingerPanCancel
