@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=StaticDesk
+NoDisplay=true
+MimeType=x-scheme-handler/staticdesk;
+TryExec=staticdesk
+Exec=staticdesk %u
+Icon=staticdesk
+Terminal=false
+Type=Application
+StartupNotify=false
+StartupWMClass=staticdesk
