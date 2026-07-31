@@ -838,6 +838,17 @@ class InputModel {
       }
     }
 
+    // StaticDesk: let the phone's own hardware volume buttons adjust the
+    // phone's local volume instead of being forwarded to the remote
+    // desktop. Forwarding an explicit on-screen volume button (see
+    // onMobileVolumeUp/onMobileVolumeDown) is still supported separately.
+    if (isMobile &&
+        (e.physicalKey == PhysicalKeyboardKey.audioVolumeUp ||
+            e.physicalKey == PhysicalKeyboardKey.audioVolumeDown ||
+            e.physicalKey == PhysicalKeyboardKey.audioVolumeMute)) {
+      return KeyEventResult.ignored;
+    }
+
     if (_relativeMouse.handleKeyEvent(
       e,
       ctrlPressed: ctrl,
