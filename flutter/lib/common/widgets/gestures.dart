@@ -21,19 +21,6 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
     _init();
   }
 
-  // StaticDesk: reject pointers landing on floating overlay controls (e.g.
-  // the virtual mouse buttons) so pressing one mid-drag doesn't get counted
-  // as a second finger and reinterpreted as a pinch/scale gesture.
-  bool Function(Offset)? isPointerBlocked;
-
-  @override
-  bool isPointerAllowed(PointerDownEvent event) {
-    if (isPointerBlocked != null && isPointerBlocked!(event.localPosition)) {
-      return false;
-    }
-    return super.isPointerAllowed(event);
-  }
-
   // oneFingerPan
   GestureDragStartCallback? onOneFingerPanStart;
   GestureDragUpdateCallback? onOneFingerPanUpdate;
@@ -232,14 +219,8 @@ class HoldTapMoveGestureRecognizer extends GestureRecognizer {
 
   final Map<int, _TapTracker> _trackers = <int, _TapTracker>{};
 
-  // StaticDesk: see CustomTouchGestureRecognizer.isPointerBlocked.
-  bool Function(Offset)? isPointerBlocked;
-
   @override
   bool isPointerAllowed(PointerDownEvent event) {
-    if (isPointerBlocked != null && isPointerBlocked!(event.localPosition)) {
-      return false;
-    }
     if (_firstTap == null) {
       switch (event.buttons) {
         case kPrimaryButton:
@@ -504,14 +485,8 @@ class DoubleFinerTapGestureRecognizer extends GestureRecognizer {
 
   final Map<int, _TapTracker> _trackers = <int, _TapTracker>{};
 
-  // StaticDesk: see CustomTouchGestureRecognizer.isPointerBlocked.
-  bool Function(Offset)? isPointerBlocked;
-
   @override
   bool isPointerAllowed(PointerDownEvent event) {
-    if (isPointerBlocked != null && isPointerBlocked!(event.localPosition)) {
-      return false;
-    }
     if (_firstTap == null) {
       switch (event.buttons) {
         case kPrimaryButton:
