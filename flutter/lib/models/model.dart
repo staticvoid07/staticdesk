@@ -4239,7 +4239,12 @@ Future<void> setCanvasConfig(
 }
 
 Future<Map<String, dynamic>?> getCanvasConfig(SessionID sessionId) async {
-  if (!isWebDesktop) return null;
+  // StaticDesk: `setCanvasConfig` already saves the canvas/cursor state on
+  // every native platform, but upstream only ever reads it back on web
+  // desktop, so mobile saved state it never restored. Restore it on mobile
+  // too, so zoom/pan/cursor position survive a reconnect. Native desktop is
+  // deliberately left alone to keep its existing behaviour.
+  if (!(isWebDesktop || isMobile)) return null;
   var p =
       await bind.sessionGetFlutterOption(sessionId: sessionId, k: canvasKey);
   if (p == null || p.isEmpty) return null;
@@ -4267,8 +4272,16 @@ Future<void> initializeCursorAndCanvas(FFI ffi) async {
   double xCanvas = p['xCanvas'];
   double yCanvas = p['yCanvas'];
   double scale = p['scale'];
-  ffi.cursorModel.updateDisplayOriginWithCursor(ffi.ffiModel.rect?.left ?? 0,
-      ffi.ffiModel.rect?.top ?? 0, xCursor, yCursor);
+  final originX = ffi.ffiModel.rect?.left ?? 0;
+  final originY = ffi.ffiModel.rect?.top ?? 0;
+  // StaticDesk: `setCanvasConfig` saves `cursorModel.x/y`, which are
+  // display-relative (`_x - _displayOriginX`), but
+  // `updateDisplayOriginWithCursor` takes the cursor in absolute desktop
+  // coordinates. Add the origin back. These are identical for a display at
+  // (0,0) - which is why this never showed up on web desktop - but restore
+  // the cursor to the wrong place for any non-primary display.
+  ffi.cursorModel.updateDisplayOriginWithCursor(
+      originX, originY, originX + xCursor, originY + yCursor);
   ffi.canvasModel.update(xCanvas, yCanvas, scale);
 }
 

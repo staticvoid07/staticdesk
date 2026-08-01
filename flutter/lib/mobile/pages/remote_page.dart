@@ -143,6 +143,21 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   @override
   Future<void> dispose() async {
     WidgetsBinding.instance.removeObserver(this);
+    // StaticDesk: persist canvas/cursor state *before* the session is closed.
+    // `sessionClose` removes the session from the sessions map, and
+    // `setCanvasConfig` resolves the session by id in order to write the
+    // option, so the save inside `gFFI.close()` further down silently no-ops
+    // once the session is gone - nothing was ever persisted on mobile.
+    if (gFFI.imageModel.image != null && !isWebDesktop) {
+      await setCanvasConfig(
+          sessionId,
+          gFFI.cursorModel.x,
+          gFFI.cursorModel.y,
+          gFFI.canvasModel.x,
+          gFFI.canvasModel.y,
+          gFFI.canvasModel.scale,
+          gFFI.ffiModel.pi.currentDisplay);
+    }
     // Close the session up-front. `gFFI.close()` below only calls `sessionClose`
     // after several awaits (canvas save, image update, the `enable_soft_keyboard`
     // platform call), so if the app is backgrounded while this page is disposing,
