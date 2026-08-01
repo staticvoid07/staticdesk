@@ -3151,7 +3151,23 @@ class CursorModel with ChangeNotifier {
   }
 
   Future<void> syncCursorPosition() async {
-    await parent.target?.inputModel.moveMouse(_x, _y);
+    final inputModel = parent.target?.inputModel;
+    if (inputModel == null) return;
+    // StaticDesk: the peer injects absolute pointer positions through a uinput
+    // ABS device, and evdev/libinput drop EV_ABS events whose value is
+    // unchanged. The local user's physical mouse is a *relative* device, so it
+    // moves the compositor's cursor without changing the ABS device's own
+    // state. Re-sending the position we last sent therefore emits no motion at
+    // all and the click lands wherever the physical mouse left the cursor.
+    // Nudge one pixel first to guarantee the value actually changes, then land
+    // exactly on target.
+    double nudgeX = _x + 1;
+    final rect = parent.target?.ffiModel.rect;
+    if (rect != null && nudgeX > rect.right - 1) {
+      nudgeX = _x - 1;
+    }
+    await inputModel.moveMouse(nudgeX, _y);
+    await inputModel.moveMouse(_x, _y);
   }
 
   bool isInRemoteRect(Offset offset) {
