@@ -1835,10 +1835,18 @@ class VirtualMouseMode with ChangeNotifier {
   bool _showVirtualMouse = false;
   double _virtualMouseScale = 1.0;
   bool _showVirtualJoystick = false;
+  // StaticDesk: per-button visibility, all default to true so existing users
+  // keep the current layout. "Middle" is the whole wheel strip.
+  bool _showVirtualMouseLeft = true;
+  bool _showVirtualMouseMiddle = true;
+  bool _showVirtualMouseRight = true;
 
   bool get showVirtualMouse => _showVirtualMouse;
   double get virtualMouseScale => _virtualMouseScale;
   bool get showVirtualJoystick => _showVirtualJoystick;
+  bool get showVirtualMouseLeft => _showVirtualMouseLeft;
+  bool get showVirtualMouseMiddle => _showVirtualMouseMiddle;
+  bool get showVirtualMouseRight => _showVirtualMouseRight;
 
   FfiModel ffiModel;
 
@@ -1870,6 +1878,30 @@ class VirtualMouseMode with ChangeNotifier {
     }
   }
 
+  setShowVirtualMouseLeft(bool b) {
+    if (b == _showVirtualMouseLeft) return;
+    if (_shouldShow()) {
+      _showVirtualMouseLeft = b;
+      notifyListeners();
+    }
+  }
+
+  setShowVirtualMouseMiddle(bool b) {
+    if (b == _showVirtualMouseMiddle) return;
+    if (_shouldShow()) {
+      _showVirtualMouseMiddle = b;
+      notifyListeners();
+    }
+  }
+
+  setShowVirtualMouseRight(bool b) {
+    if (b == _showVirtualMouseRight) return;
+    if (_shouldShow()) {
+      _showVirtualMouseRight = b;
+      notifyListeners();
+    }
+  }
+
   void loadOptions() {
     _showVirtualMouse =
         bind.mainGetLocalOption(key: kOptionShowVirtualMouse) == 'Y';
@@ -1878,6 +1910,13 @@ class VirtualMouseMode with ChangeNotifier {
         1.0;
     _showVirtualJoystick =
         bind.mainGetLocalOption(key: kOptionShowVirtualJoystick) == 'Y';
+    // Unset means shown, so only an explicit 'N' hides a button.
+    _showVirtualMouseLeft =
+        bind.mainGetLocalOption(key: kOptionShowVirtualMouseLeft) != 'N';
+    _showVirtualMouseMiddle =
+        bind.mainGetLocalOption(key: kOptionShowVirtualMouseMiddle) != 'N';
+    _showVirtualMouseRight =
+        bind.mainGetLocalOption(key: kOptionShowVirtualMouseRight) != 'N';
     notifyListeners();
   }
 
@@ -1894,6 +1933,30 @@ class VirtualMouseMode with ChangeNotifier {
         value: showVirtualJoystick ? 'N' : 'Y');
     setShowVirtualJoystick(
         bind.mainGetLocalOption(key: kOptionShowVirtualJoystick) == 'Y');
+  }
+
+  Future<void> toggleVirtualMouseLeft() async {
+    await bind.mainSetLocalOption(
+        key: kOptionShowVirtualMouseLeft,
+        value: showVirtualMouseLeft ? 'N' : 'Y');
+    setShowVirtualMouseLeft(
+        bind.mainGetLocalOption(key: kOptionShowVirtualMouseLeft) != 'N');
+  }
+
+  Future<void> toggleVirtualMouseMiddle() async {
+    await bind.mainSetLocalOption(
+        key: kOptionShowVirtualMouseMiddle,
+        value: showVirtualMouseMiddle ? 'N' : 'Y');
+    setShowVirtualMouseMiddle(
+        bind.mainGetLocalOption(key: kOptionShowVirtualMouseMiddle) != 'N');
+  }
+
+  Future<void> toggleVirtualMouseRight() async {
+    await bind.mainSetLocalOption(
+        key: kOptionShowVirtualMouseRight,
+        value: showVirtualMouseRight ? 'N' : 'Y');
+    setShowVirtualMouseRight(
+        bind.mainGetLocalOption(key: kOptionShowVirtualMouseRight) != 'N');
   }
 }
 
@@ -3114,6 +3177,21 @@ class CursorModel with ChangeNotifier {
   get scale => parent.target?.canvasModel.scale ?? 1.0;
 
   // mobile Soft keyboard, block touch event from the KeyHelpTools
+  // StaticDesk: is the point inside one of the floating overlay widgets
+  // (virtual mouse buttons / wheel)? Unlike `shouldBlock` this deliberately
+  // ignores the global `_blockEvents` flag, so it stays a pure geometric
+  // test. Used to keep pointers landing on those widgets out of the remote
+  // image's gesture recognizers.
+  bool isPointInBlockedRects(double x, double y) {
+    final offset = Offset(x, y);
+    for (final rect in _blockedRects) {
+      if (isPointInRect(offset, rect)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   shouldBlock(double x, double y) {
     if (_blockEvents) {
       return true;

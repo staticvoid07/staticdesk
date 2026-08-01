@@ -7,7 +7,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter_hbb/common.dart';
@@ -23,8 +22,15 @@ const double _wheelHeight = 162;
 // Used for the left/right button widgets
 const double _kSpaceToVerticalEdge = 15;
 const double _kSpaceBetweenLeftRightButtons = 40;
-const double _kLeftRightButtonWidth = 55;
-const double _kLeftRightButtonHeight = 40;
+const double _kLeftRightButtonWidth = 120;
+const double _kLeftRightButtonHeight = 86;
+// StaticDesk: repositioning a left/right button requires a deliberate
+// press-and-hold followed by movement. Brushing or sliding a finger while
+// using the button as a mouse button must not drag the widget around, and
+// must not cancel the press-and-hold that lets a second finger drag the
+// remote cursor (click-and-drag / drag-and-drop).
+const Duration _kRepositionDelay = Duration(milliseconds: 600);
+const double _kRepositionSlop = 24.0;
 const double _kBorderWidth = 1;
 final Color _kDefaultBorderColor = Colors.white.withOpacity(0.7);
 final Color _kDefaultColor = Colors.black.withOpacity(0.4);
@@ -79,25 +85,30 @@ class _FloatingMouseWidgetsState extends State<FloatingMouseWidgets> {
     }
     return Stack(
       children: [
-        FloatingWheel(
-          inputModel: _inputModel,
-          cursorModel: _cursorModel,
-        ),
+        // "Middle" covers the whole wheel strip: scroll up, middle click,
+        // scroll down.
+        if (virtualMouseMode.showVirtualMouseMiddle)
+          FloatingWheel(
+            inputModel: _inputModel,
+            cursorModel: _cursorModel,
+          ),
         if (virtualMouseMode.showVirtualJoystick)
           VirtualJoystick(
             cursorModel: _cursorModel,
             inputModel: _inputModel,
           ),
-        FloatingLeftRightButton(
-          isLeft: true,
-          inputModel: _inputModel,
-          cursorModel: _cursorModel,
-        ),
-        FloatingLeftRightButton(
-          isLeft: false,
-          inputModel: _inputModel,
-          cursorModel: _cursorModel,
-        ),
+        if (virtualMouseMode.showVirtualMouseLeft)
+          FloatingLeftRightButton(
+            isLeft: true,
+            inputModel: _inputModel,
+            cursorModel: _cursorModel,
+          ),
+        if (virtualMouseMode.showVirtualMouseRight)
+          FloatingLeftRightButton(
+            isLeft: false,
+            inputModel: _inputModel,
+            cursorModel: _cursorModel,
+          ),
       ],
     );
   }
@@ -189,6 +200,12 @@ class _FloatingWheelState extends State<FloatingWheel> {
       BorderRadiusGeometry borderRadius,
       IconData iconData) {
     return Listener(
+      // StaticDesk: absorb touches anywhere in the widget's rect. With the
+      // default `deferToChild` a touch on the button's empty area (not on the
+      // small icon) is not absorbed and leaks through to the remote image's
+      // gesture detector, which then sees a second pointer and pans/zooms the
+      // canvas instead of letting the button act as a mouse button.
+      behavior: HitTestBehavior.opaque,
       onPointerDown: onPointerDown,
       onPointerUp: onPointerUp,
       onPointerCancel: onPointerCancel,
@@ -250,6 +267,7 @@ class _FloatingWheelState extends State<FloatingWheel> {
             Icons.keyboard_arrow_up,
           ),
           Listener(
+            behavior: HitTestBehavior.opaque,
             onPointerDown: (event) {
               setState(() {
                 _isMidDown = true;
@@ -386,6 +404,9 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
   // tap, so without a deadzone here every tap was immediately reclassified
   // as a drag (canceling the tap timer) and the click never fired.
   Offset _moveAccumulator = Offset.zero;
+  // When the current pointer went down, used to gate widget repositioning
+  // behind `_kRepositionDelay`.
+  DateTime? _pointerDownAt;
 
   bool get _isLeft => widget.isLeft;
   InputModel get _inputModel => widget.inputModel;
@@ -470,8 +491,16 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
       _position = Offset(_getOffsetX(size.width),
           size.height - _kSpaceToVerticalEdge - _kLeftRightButtonHeight);
     } else {
-      _position = pos;
-      _preSavedPos = pos;
+      // StaticDesk: clamp the restored position into the current bounds. A
+      // position saved when the buttons were smaller (or in a different
+      // window size) can otherwise leave part of the button off-screen.
+      final size = MediaQuery.of(context).size;
+      final clamped = Offset(
+        pos.dx.clamp(0.0, size.width - _kLeftRightButtonWidth),
+        pos.dy.clamp(0.0, size.height - _kLeftRightButtonHeight),
+      );
+      _position = clamped;
+      _preSavedPos = clamped;
     }
   }
 
@@ -499,10 +528,12 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
     final context = this.context;
     final size = MediaQuery.of(context).size;
     Offset newPosition = _position + delta;
-    double minX = _kSpaceToHorizontalEdge;
-    double minY = _kSpaceToVerticalEdge;
-    double maxX = size.width - _kLeftRightButtonWidth - _kSpaceToHorizontalEdge;
-    double maxY = size.height - _kLeftRightButtonHeight - _kSpaceToVerticalEdge;
+    // StaticDesk: no edge padding, so a button can be parked flush in a
+    // corner. Only the widget's own size limits how far it can go.
+    double minX = 0;
+    double minY = 0;
+    double maxX = size.width - _kLeftRightButtonWidth;
+    double maxY = size.height - _kLeftRightButtonHeight;
     newPosition = Offset(
       newPosition.dx.clamp(minX, maxX),
       newPosition.dy.clamp(minY, maxY),
@@ -520,24 +551,36 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
   }
 
   void _onBodyPointerMoveUpdate(PointerMoveEvent event) {
-    if (!_isDragging) {
-      // Absorb small jitter so a stationary tap isn't misread as a drag.
-      _moveAccumulator += event.delta;
-      if (_moveAccumulator.distance < kTouchSlop) {
-        return;
-      }
+    if (_isDragging) {
       _cursorModel.blockEvents = true;
-      _isDragging = true;
-      // Cancel the timer to prevent it from being recognized as a tap/hold.
-      _tapDownTimer?.cancel();
-      _tapDownTimer = null;
-      // Apply the accumulated movement now, so the button doesn't jump once
-      // the threshold is crossed.
-      _onMoveUpdateDelta(_moveAccumulator);
+      _onMoveUpdateDelta(event.delta);
+      return;
+    }
+    _moveAccumulator += event.delta;
+    // Repositioning the widget requires BOTH a deliberate hold and a
+    // deliberate movement. Anything less is absorbed: it must not move the
+    // widget and, crucially, must not cancel the press-and-hold timer, or
+    // holding this button while dragging with another finger stops working.
+    final downAt = _pointerDownAt;
+    final heldLongEnough =
+        downAt != null && DateTime.now().difference(downAt) >= _kRepositionDelay;
+    if (!heldLongEnough || _moveAccumulator.distance < _kRepositionSlop) {
       return;
     }
     _cursorModel.blockEvents = true;
-    _onMoveUpdateDelta(event.delta);
+    _isDragging = true;
+    _tapDownTimer?.cancel();
+    _tapDownTimer = null;
+    // The press-and-hold already sent a button-down by this point. Release it
+    // so the peer is not left with a mouse button stuck down while we are
+    // only moving the on-screen widget.
+    if (isSpecialHoldDragActive) {
+      _inputModel.tapUp(_isLeft ? MouseButtons.left : MouseButtons.right);
+      isSpecialHoldDragActive = false;
+    }
+    // Apply the accumulated movement now, so the button doesn't jump once
+    // the threshold is crossed.
+    _onMoveUpdateDelta(_moveAccumulator);
   }
 
   Widget _buildButtonIcon() {
@@ -583,10 +626,12 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
       // We can't use the GestureDetector here, because `onTapDown` may be
       // triggered sometimes when dragging.
       child: Listener(
+        behavior: HitTestBehavior.opaque,
         onPointerMove: _onBodyPointerMoveUpdate,
         onPointerDown: (event) async {
           _isDragging = false;
           _moveAccumulator = Offset.zero;
+          _pointerDownAt = DateTime.now();
           setState(() {
             _isDown = true;
           });
@@ -657,11 +702,9 @@ class _FloatingLeftRightButtonState extends State<FloatingLeftRightButton> {
             border: Border.all(
                 color: _isDown ? _kTapDownColor : _kDefaultBorderColor,
                 width: _kBorderWidth),
-            borderRadius: _isLeft
-                ? BorderRadius.horizontal(
-                    left: Radius.circular(_kLeftRightButtonHeight * 0.5))
-                : BorderRadius.horizontal(
-                    right: Radius.circular(_kLeftRightButtonHeight * 0.5)),
+            // StaticDesk: rectangular, so the buttons sit flush in a screen
+            // corner without a rounded edge.
+            borderRadius: BorderRadius.zero,
           ),
           child: _buildButtonIcon(),
         ),

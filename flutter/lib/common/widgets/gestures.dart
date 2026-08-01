@@ -21,6 +21,27 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
     _init();
   }
 
+  // StaticDesk: the gesture region is an *ancestor* of the floating virtual
+  // mouse widgets, so a pointer landing on one of those buttons still reaches
+  // this recognizer and bumps `pointerCount` to 2 - which is interpreted as a
+  // two-finger gesture and pans/zooms the canvas while the user is only
+  // trying to click. Hit-test behaviour cannot prevent that (it only affects
+  // siblings behind, not ancestors), so reject those pointers here instead.
+  //
+  // This must be a purely geometric test. An earlier attempt used
+  // `CursorModel.shouldBlock`, which also returns true for the global
+  // `blockEvents` flag, and so rejected the panning finger as well and broke
+  // dragging entirely.
+  bool Function(Offset)? isPointerBlocked;
+
+  @override
+  bool isPointerAllowed(PointerDownEvent event) {
+    if (isPointerBlocked?.call(event.localPosition) == true) {
+      return false;
+    }
+    return super.isPointerAllowed(event);
+  }
+
   // oneFingerPan
   GestureDragStartCallback? onOneFingerPanStart;
   GestureDragUpdateCallback? onOneFingerPanUpdate;
