@@ -754,6 +754,16 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                     setState(callback);
                   });
                 }),
+          SettingsTile.switchTile(
+            title: Text(translate('Show keyboard shortcut bar')),
+            initialValue:
+                bind.mainGetLocalOption(key: kOptionShowKeyHelpTools) != 'N',
+            onToggle: (v) async {
+              await bind.mainSetLocalOption(
+                  key: kOptionShowKeyHelpTools, value: v ? 'Y' : 'N');
+              setState(() {});
+            },
+          ),
           SettingsTile(
               title: Text(translate('Drag threshold')),
               leading: Icon(Icons.drag_indicator),

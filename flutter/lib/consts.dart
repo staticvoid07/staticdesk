@@ -179,6 +179,15 @@ const String kOptionEnableTrustedDevices = "enable-trusted-devices";
 const String kOptionShowVirtualMouse = "show-virtual-mouse";
 const String kOptionVirtualMouseScale = "virtual-mouse-scale";
 const String kOptionShowVirtualJoystick = "show-virtual-joystick";
+// StaticDesk: per-button visibility for the virtual mouse. "Middle" covers the
+// whole wheel strip (scroll up / middle click / scroll down). All default to
+// shown, so an unset value must read as on.
+const String kOptionShowVirtualMouseLeft = "show-virtual-mouse-left";
+const String kOptionShowVirtualMouseMiddle = "show-virtual-mouse-middle";
+const String kOptionShowVirtualMouseRight = "show-virtual-mouse-right";
+// StaticDesk: whether the modifier/function key bar is shown above the soft
+// keyboard on mobile. Defaults to shown, so unset must read as on.
+const String kOptionShowKeyHelpTools = "show-key-help-tools";
 const String kOptionAllowAskForNoteAtEndOfConnection = "allow-ask-for-note";
 const String kOptionAllowMonitorSwitchMainToolbar = "allow-monitor-switch-main-toolbar";
 const String kOptionAllowMonitorSwitchMinToolbar = "allow-monitor-switch-min-toolbar";

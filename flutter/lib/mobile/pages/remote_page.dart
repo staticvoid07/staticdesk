@@ -995,6 +995,12 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
         inputModel.shift ||
         inputModel.command;
 
+    // StaticDesk: user can turn the key bar off entirely.
+    if (bind.mainGetLocalOption(key: kOptionShowKeyHelpTools) == 'N') {
+      gFFI.cursorModel
+          .keyHelpToolsVisibilityChanged(null, widget.keyboardIsVisible);
+      return Offstage();
+    }
     if (!_pin && !hasModifierOn && !widget.requestShow) {
       gFFI.cursorModel
           .keyHelpToolsVisibilityChanged(null, widget.keyboardIsVisible);

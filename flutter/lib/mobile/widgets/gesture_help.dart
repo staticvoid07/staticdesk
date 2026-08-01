@@ -204,6 +204,84 @@ class _GestureHelpState extends State<GestureHelp> {
                         Transform.translate(
                           offset: const Offset(-10.0, -12.0),
                           child: Padding(
+                              padding: const EdgeInsets.only(left: 24.0),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Checkbox(
+                                    value: _virtualMouseMode.showVirtualMouseLeft,
+                                    onChanged: (value) async {
+                                      if (value == null) return;
+                                      await _virtualMouseMode.toggleVirtualMouseLeft();
+                                      setState(() {});
+                                    },
+                                  ),
+                                  InkWell(
+                                    onTap: () async {
+                                      await _virtualMouseMode.toggleVirtualMouseLeft();
+                                      setState(() {});
+                                    },
+                                    child: Text(translate("Show left button")),
+                                  ),
+                                ],
+                              )),
+                        ),
+                      if (!_touchMode && _virtualMouseMode.showVirtualMouse)
+                        Transform.translate(
+                          offset: const Offset(-10.0, -24.0),
+                          child: Padding(
+                              padding: const EdgeInsets.only(left: 24.0),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Checkbox(
+                                    value: _virtualMouseMode.showVirtualMouseMiddle,
+                                    onChanged: (value) async {
+                                      if (value == null) return;
+                                      await _virtualMouseMode.toggleVirtualMouseMiddle();
+                                      setState(() {});
+                                    },
+                                  ),
+                                  InkWell(
+                                    onTap: () async {
+                                      await _virtualMouseMode.toggleVirtualMouseMiddle();
+                                      setState(() {});
+                                    },
+                                    child: Text(translate("Show middle button")),
+                                  ),
+                                ],
+                              )),
+                        ),
+                      if (!_touchMode && _virtualMouseMode.showVirtualMouse)
+                        Transform.translate(
+                          offset: const Offset(-10.0, -36.0),
+                          child: Padding(
+                              padding: const EdgeInsets.only(left: 24.0),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Checkbox(
+                                    value: _virtualMouseMode.showVirtualMouseRight,
+                                    onChanged: (value) async {
+                                      if (value == null) return;
+                                      await _virtualMouseMode.toggleVirtualMouseRight();
+                                      setState(() {});
+                                    },
+                                  ),
+                                  InkWell(
+                                    onTap: () async {
+                                      await _virtualMouseMode.toggleVirtualMouseRight();
+                                      setState(() {});
+                                    },
+                                    child: Text(translate("Show right button")),
+                                  ),
+                                ],
+                              )),
+                        ),
+                      if (!_touchMode && _virtualMouseMode.showVirtualMouse)
+                        Transform.translate(
+                          offset: const Offset(-10.0, -48.0),
+                          child: Padding(
                               // Indent "Show virtual joystick"
                               padding: const EdgeInsets.only(left: 24.0),
                               child: Row(
@@ -245,7 +323,7 @@ class _GestureHelpState extends State<GestureHelp> {
                           _virtualMouseMode.showVirtualJoystick &&
                           widget.inputModel != null)
                         Obx(() => Transform.translate(
-                              offset: const Offset(-10.0, -24.0),
+                              offset: const Offset(-10.0, -60.0),
                               child: Padding(
                                   // Indent further for 'Relative mouse mode'
                                   padding: const EdgeInsets.only(left: 48.0),
