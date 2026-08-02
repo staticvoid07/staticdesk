@@ -904,7 +904,9 @@ Future<List<TToggleMenu>> toolbarDisplayToggle(
       },
       child: Text(translate('Show quality monitor'))));
   // mute
-  if (isDefaultConn && perms['audio'] != false) {
+  // StaticDesk: on mobile this lives in the bottom bar as a speaker button
+  // instead, so it is not listed twice.
+  if (!isMobile && isDefaultConn && perms['audio'] != false) {
     final option = 'disable-audio';
     final value =
         bind.sessionGetToggleOptionSync(sessionId: sessionId, arg: option);

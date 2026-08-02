@@ -135,11 +135,29 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     _waylandKeyboardGateWorker = ever(gFFI.ffiModel.pi.isSet, (bool isSet) {
       if (isSet) {
         _initWaylandKeyboardGateIfNeeded();
+        _ensureUnmuted();
       }
     });
     if (gFFI.ffiModel.pi.isSet.value) {
       _initWaylandKeyboardGateIfNeeded();
     }
+    _ensureUnmuted();
+  }
+
+  // StaticDesk: `disable-audio` is a persisted per-peer toggle, so muting a peer
+  // once would carry over to every later session. Every session starts unmuted
+  // instead; muting is a per-session decision made from the bottom bar.
+  //
+  // Idempotent on purpose - there is no setter for this option, only a toggle,
+  // and this runs both right after `start` and again once peer info arrives, in
+  // case the first call landed before the session was ready to send.
+  void _ensureUnmuted() {
+    if (gFFI.connType != ConnType.defaultConn) return;
+    if (!bind.sessionGetToggleOptionSync(
+        sessionId: sessionId, arg: 'disable-audio')) {
+      return;
+    }
+    bind.sessionToggleOption(sessionId: sessionId, value: 'disable-audio');
   }
 
   @override
@@ -586,6 +604,28 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     );
   }
 
+  // StaticDesk: audio mute, moved out of the options dialog so it is one tap.
+  // Backed by the same per-peer `disable-audio` toggle, which defaults to off
+  // (unmuted) and is remembered per peer like every other session toggle.
+  List<Widget> _muteButton(FfiModel ffiModel) {
+    if (gFFI.connType != ConnType.defaultConn) return [];
+    if (ffiModel.permissions['audio'] == false) return [];
+    final muted =
+        bind.sessionGetToggleOptionSync(sessionId: sessionId, arg: 'disable-audio');
+    return [
+      IconButton(
+        color: Colors.white,
+        icon: Icon(muted ? Icons.volume_off : Icons.volume_up),
+        tooltip: translate(muted ? 'Unmute' : 'Mute'),
+        onPressed: () async {
+          await bind.sessionToggleOption(
+              sessionId: sessionId, value: 'disable-audio');
+          setState(() {});
+        },
+      ),
+    ];
+  }
+
   Widget getBottomAppBar() {
     final ffiModel = Provider.of<FfiModel>(context);
     return BottomAppBar(
@@ -642,6 +682,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                                     () => _showGestureHelp = !_showGestureHelp),
                               ),
                             ]) +
+                  _muteButton(ffiModel) +
                   (isWeb
                       ? []
                       : <Widget>[
