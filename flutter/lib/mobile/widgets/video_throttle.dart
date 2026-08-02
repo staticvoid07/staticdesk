@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_hbb/consts.dart';
@@ -24,16 +25,8 @@ class VideoThrottle {
   VideoThrottle._();
   static final VideoThrottle instance = VideoThrottle._();
 
-  /// Frame rate used while throttled. 1 is the floor the controlled side
-  /// accepts (`MIN_FPS` in video_qos.rs); the client-side clamp in io_loop.rs
-  /// was lowered to match, since upstream snapped anything under 5 back to 30.
-  static const int throttledFps = 1;
-
   /// Fallback when the peer has no explicit `custom-fps` (the protocol default).
   static const int defaultFps = 30;
-
-  /// How long without input before the idle throttle kicks in.
-  static const Duration idleTimeout = Duration(seconds: 20);
 
   FFI? _ffi;
   Timer? _idleTimer;
@@ -48,6 +41,50 @@ class VideoThrottle {
 
   bool get idleThrottleEnabled =>
       bind.mainGetLocalOption(key: kOptionIdleVideoThrottle) == 'Y';
+
+  /// Frame rate the idle throttle drops to. 1 is the floor the controlled side
+  /// accepts (`MIN_FPS` in video_qos.rs); the client-side clamp in io_loop.rs
+  /// was lowered to match, since upstream snapped anything under 5 back to 30.
+  int get idleThrottleFps => _readFpsOption(kOptionIdleThrottleFps);
+
+  /// Frame rate used while the app is backgrounded. Setting this at or above
+  /// the session's own frame rate effectively disables the background throttle.
+  int get backgroundThrottleFps =>
+      _readFpsOption(kOptionBackgroundThrottleFps);
+
+  /// How long without input before the idle throttle engages. Read fresh each
+  /// time the timer is armed, so a change takes effect on the next idle period
+  /// rather than the next session.
+  Duration get idleTimeout {
+    final v = int.tryParse(
+        bind.mainGetLocalOption(key: kOptionIdleThrottleTimeout));
+    if (v == null ||
+        v < kMinIdleThrottleTimeout ||
+        v > kMaxIdleThrottleTimeout) {
+      return const Duration(seconds: kDefaultIdleThrottleTimeout);
+    }
+    return Duration(seconds: v);
+  }
+
+  int _readFpsOption(String key) {
+    final v = int.tryParse(bind.mainGetLocalOption(key: key));
+    if (v == null || v < kMinThrottleFps || v > kMaxThrottleFps) {
+      return kDefaultThrottleFps;
+    }
+    return v;
+  }
+
+  /// Frame rate the current throttle state calls for, or null when not
+  /// throttled. Both can be set at once - the idle timer may fire and the app
+  /// then be backgrounded - in which case the more aggressive one wins.
+  int? get _activeThrottleFps {
+    if (_backgroundThrottled && _idleThrottled) {
+      return min(backgroundThrottleFps, idleThrottleFps);
+    }
+    if (_backgroundThrottled) return backgroundThrottleFps;
+    if (_idleThrottled) return idleThrottleFps;
+    return null;
+  }
 
   Future<void> setIdleThrottleEnabled(bool enabled) async {
     await bind.mainSetLocalOption(
@@ -136,11 +173,12 @@ class VideoThrottle {
     final ffi = _ffi;
     if (ffi == null) return;
     final sessionId = ffi.sessionId;
-    if (_throttled) {
+    final target = _activeThrottleFps;
+    if (target != null) {
       _baseFps = await _readConfiguredFps(ffi);
-      if (_baseFps <= throttledFps) return; // already at or below the floor
-      await bind.sessionSetCustomFpsTemp(
-          sessionId: sessionId, fps: throttledFps);
+      // Nothing to gain if the session already runs at or below the target.
+      if (_baseFps <= target) return;
+      await bind.sessionSetCustomFpsTemp(sessionId: sessionId, fps: target);
     } else {
       await bind.sessionSetCustomFpsTemp(sessionId: sessionId, fps: _baseFps);
     }

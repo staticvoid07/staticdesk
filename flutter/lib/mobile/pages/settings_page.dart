@@ -776,6 +776,24 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               onPressed: (context) {
                 changeDragSensitivity();
               }),
+          SettingsTile(
+              title: Text(translate('Idle frame rate')),
+              leading: Icon(Icons.hourglass_empty),
+              onPressed: (context) {
+                changeIdleThrottleFps();
+              }),
+          SettingsTile(
+              title: Text(translate('Idle timeout')),
+              leading: Icon(Icons.timer),
+              onPressed: (context) {
+                changeIdleThrottleTimeout();
+              }),
+          SettingsTile(
+              title: Text(translate('Background frame rate')),
+              leading: Icon(Icons.battery_saver),
+              onPressed: (context) {
+                changeBackgroundThrottleFps();
+              }),
           if (!_hideNetwork && !_hideProxy)
             SettingsTile(
                 title: Text(translate('Socks5/Http(s) Proxy')),
@@ -1425,6 +1443,112 @@ SettingsTile _getPopupDialogRadioEntry({
 
 /// StaticDesk: how far (in logical pixels) a press-and-drag must travel
 /// before the remote cursor starts following it. See [kOptionDragThreshold].
+// StaticDesk: shared editor for the two battery throttle frame rates.
+void _changeThrottleFps(String optionKey, String title, String hint) async {
+  final current = bind.mainGetLocalOption(key: optionKey);
+  final controller = TextEditingController(
+      text: current.isEmpty ? '$kDefaultThrottleFps' : current);
+  String errMsg = '';
+  gFFI.dialogManager.show((setState, close, context) {
+    submit() {
+      final value = int.tryParse(controller.text.trim());
+      if (value == null || value < kMinThrottleFps || value > kMaxThrottleFps) {
+        setState(() => errMsg = translate('Invalid value'));
+        return;
+      }
+      bind.mainSetLocalOption(key: optionKey, value: '$value');
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate(title)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(translate(hint)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              errorText: errMsg.isEmpty ? null : errMsg,
+              suffixText: 'fps',
+              helperText: '$kMinThrottleFps - $kMaxThrottleFps',
+            ),
+            onSubmitted: (_) => submit(),
+          ),
+        ],
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('OK', onPressed: submit),
+      ],
+    );
+  }, backDismiss: true, clickMaskDismiss: true);
+}
+
+void changeIdleThrottleFps() => _changeThrottleFps(
+    kOptionIdleThrottleFps,
+    'Idle frame rate',
+    'Frame rate used after a period with no input, when "Reduce frame rate when idle" is on.');
+
+void changeBackgroundThrottleFps() => _changeThrottleFps(
+    kOptionBackgroundThrottleFps,
+    'Background frame rate',
+    'Frame rate used while the app is in the background. Audio keeps playing. Set this to your session frame rate to disable it.');
+
+void changeIdleThrottleTimeout() async {
+  final current = bind.mainGetLocalOption(key: kOptionIdleThrottleTimeout);
+  final controller = TextEditingController(
+      text: current.isEmpty ? '$kDefaultIdleThrottleTimeout' : current);
+  String errMsg = '';
+  gFFI.dialogManager.show((setState, close, context) {
+    submit() {
+      final value = int.tryParse(controller.text.trim());
+      if (value == null ||
+          value < kMinIdleThrottleTimeout ||
+          value > kMaxIdleThrottleTimeout) {
+        setState(() => errMsg = translate('Invalid value'));
+        return;
+      }
+      bind.mainSetLocalOption(
+          key: kOptionIdleThrottleTimeout, value: '$value');
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate('Idle timeout')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(translate(
+              'How long without touching the screen or typing before the idle frame rate is applied.')),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              errorText: errMsg.isEmpty ? null : errMsg,
+              suffixText: 's',
+              helperText:
+                  '$kMinIdleThrottleTimeout - $kMaxIdleThrottleTimeout',
+            ),
+            onSubmitted: (_) => submit(),
+          ),
+        ],
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('OK', onPressed: submit),
+      ],
+    );
+  }, backDismiss: true, clickMaskDismiss: true);
+}
+
 void changeDragSensitivity() async {
   final current = bind.mainGetLocalOption(key: kOptionDragSensitivity);
   final controller = TextEditingController(

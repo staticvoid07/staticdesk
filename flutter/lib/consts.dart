@@ -198,6 +198,20 @@ const String kOptionShowKeyHelpTools = "show-key-help-tools";
 // StaticDesk: drop the remote frame rate after a period with no input, to save
 // battery on the controlling phone. Off unless explicitly enabled.
 const String kOptionIdleVideoThrottle = "idle-video-throttle";
+// StaticDesk: frame rates used by the two battery throttles. 1 is the lowest
+// the controlled side accepts (MIN_FPS in video_qos.rs). Setting either at or
+// above the session's own frame rate leaves that throttle with nothing to do,
+// which is how the background throttle is turned off.
+const String kOptionIdleThrottleFps = "idle-throttle-fps";
+const String kOptionBackgroundThrottleFps = "background-throttle-fps";
+const int kDefaultThrottleFps = 1;
+const int kMinThrottleFps = 1;
+const int kMaxThrottleFps = 120;
+// StaticDesk: how long without input before the idle throttle engages.
+const String kOptionIdleThrottleTimeout = "idle-throttle-timeout";
+const int kDefaultIdleThrottleTimeout = 20;
+const int kMinIdleThrottleTimeout = 1;
+const int kMaxIdleThrottleTimeout = 3600;
 const String kOptionAllowAskForNoteAtEndOfConnection = "allow-ask-for-note";
 const String kOptionAllowMonitorSwitchMainToolbar = "allow-monitor-switch-main-toolbar";
 const String kOptionAllowMonitorSwitchMinToolbar = "allow-monitor-switch-min-toolbar";
