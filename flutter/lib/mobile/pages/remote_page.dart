@@ -8,6 +8,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/mobile/widgets/floating_mouse.dart';
 import 'package:flutter_hbb/mobile/widgets/floating_mouse_widgets.dart';
 import 'package:flutter_hbb/mobile/widgets/gesture_help.dart';
+import 'package:flutter_hbb/mobile/widgets/video_throttle.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:flutter_svg/svg.dart';
@@ -124,6 +125,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
           isKeyboardVisible: keyboardVisibilityController.isVisible);
     });
     WidgetsBinding.instance.addObserver(this);
+    VideoThrottle.instance.attach(gFFI);
 
     inputModel.keyboardInputAllowed = true;
 
@@ -143,6 +145,9 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   @override
   Future<void> dispose() async {
     WidgetsBinding.instance.removeObserver(this);
+    // StaticDesk: stop the battery throttles and put the user's frame rate back
+    // while the session still exists (fps writes resolve the session by id).
+    await VideoThrottle.instance.detach();
     // StaticDesk: persist canvas/cursor state *before* the session is closed.
     // `sessionClose` removes the session from the sessions map, and
     // `setCanvasConfig` resolves the session by id in order to write the
@@ -197,6 +202,15 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       trySyncClipboard();
+      // StaticDesk: back on screen, restore the user's frame rate.
+      unawaited(VideoThrottle.instance.onAppForeground());
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      // StaticDesk: nothing is being rendered while backgrounded, but the peer
+      // keeps streaming and the decoder keeps running. Drop the frame rate to
+      // the floor. Audio is a separate stream and is left alone, so sound keeps
+      // playing.
+      unawaited(VideoThrottle.instance.onAppBackground());
     }
   }
 
@@ -465,87 +479,94 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         clientClose(sessionId, gFFI);
         return false;
       },
-      child: Scaffold(
-          // workaround for https://github.com/rustdesk/rustdesk/issues/3131
-          floatingActionButtonLocation: keyboardIsVisible
-              ? FABLocation(FloatingActionButtonLocation.endFloat, 0, -35)
-              : null,
-          floatingActionButton: !showActionButton
-              ? null
-              : FloatingActionButton(
-                  mini: !keyboardIsVisible,
-                  child: Icon(
-                    (keyboardIsVisible || _showGestureHelp)
-                        ? Icons.expand_more
-                        : Icons.expand_less,
-                    color: Colors.white,
-                  ),
-                  backgroundColor: MyTheme.accent,
-                  onPressed: () {
-                    setState(() {
-                      if (keyboardIsVisible) {
-                        _showEdit = false;
-                        gFFI.invokeMethod("enable_soft_keyboard", false);
-                        _mobileFocusNode.unfocus();
-                        _physicalFocusNode.requestFocus();
-                      } else if (_showGestureHelp) {
-                        _showGestureHelp = false;
-                      } else {
-                        _showBar = !_showBar;
-                      }
-                    });
-                  }),
-          bottomNavigationBar: Obx(() => Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  gFFI.ffiModel.pi.isSet.isTrue &&
-                          gFFI.ffiModel.waitForFirstImage.isTrue
-                      ? emptyOverlay(MyTheme.canvasColor)
-                      : () {
-                          gFFI.ffiModel.tryShowAndroidActionsOverlay();
-                          return Offstage();
-                        }(),
-                  _bottomWidget(),
-                  gFFI.ffiModel.pi.isSet.isFalse
-                      ? emptyOverlay(MyTheme.canvasColor)
-                      : Offstage(),
+      // StaticDesk: passive activity tap for the idle throttle. `Listener` never
+      // joins the gesture arena and defers hit testing to its child, so this
+      // cannot interfere with panning, pinch, or the virtual mouse buttons.
+      child: Listener(
+        onPointerDown: (_) => VideoThrottle.instance.notifyUserActivity(),
+        onPointerSignal: (_) => VideoThrottle.instance.notifyUserActivity(),
+        child: Scaffold(
+            // workaround for https://github.com/rustdesk/rustdesk/issues/3131
+            floatingActionButtonLocation: keyboardIsVisible
+                ? FABLocation(FloatingActionButtonLocation.endFloat, 0, -35)
+                : null,
+            floatingActionButton: !showActionButton
+                ? null
+                : FloatingActionButton(
+                    mini: !keyboardIsVisible,
+                    child: Icon(
+                      (keyboardIsVisible || _showGestureHelp)
+                          ? Icons.expand_more
+                          : Icons.expand_less,
+                      color: Colors.white,
+                    ),
+                    backgroundColor: MyTheme.accent,
+                    onPressed: () {
+                      setState(() {
+                        if (keyboardIsVisible) {
+                          _showEdit = false;
+                          gFFI.invokeMethod("enable_soft_keyboard", false);
+                          _mobileFocusNode.unfocus();
+                          _physicalFocusNode.requestFocus();
+                        } else if (_showGestureHelp) {
+                          _showGestureHelp = false;
+                        } else {
+                          _showBar = !_showBar;
+                        }
+                      });
+                    }),
+            bottomNavigationBar: Obx(() => Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    gFFI.ffiModel.pi.isSet.isTrue &&
+                            gFFI.ffiModel.waitForFirstImage.isTrue
+                        ? emptyOverlay(MyTheme.canvasColor)
+                        : () {
+                            gFFI.ffiModel.tryShowAndroidActionsOverlay();
+                            return Offstage();
+                          }(),
+                    _bottomWidget(),
+                    gFFI.ffiModel.pi.isSet.isFalse
+                        ? emptyOverlay(MyTheme.canvasColor)
+                        : Offstage(),
+                  ],
+                )),
+            body: Obx(
+              () => getRawPointerAndKeyBody(Overlay(
+                initialEntries: [
+                  OverlayEntry(builder: (context) {
+                    return Container(
+                      color: kColorCanvas,
+                      child: isWebDesktop
+                          ? getBodyForDesktopWithListener()
+                          : SafeArea(
+                              child: OrientationBuilder(
+                                  builder: (ctx, orientation) {
+                                if (_currentOrientation != orientation) {
+                                  Timer(const Duration(milliseconds: 200), () {
+                                    gFFI.dialogManager
+                                        .resetMobileActionsOverlay(ffi: gFFI);
+                                    _currentOrientation = orientation;
+                                    gFFI.canvasModel.updateViewStyle();
+                                  });
+                                }
+                                return Container(
+                                  color: MyTheme.canvasColor,
+                                  child: inputModel.isPhysicalMouse.value
+                                      ? getBodyForMobile()
+                                      : RawTouchGestureDetectorRegion(
+                                          child: getBodyForMobile(),
+                                          ffi: gFFI,
+                                        ),
+                                );
+                              }),
+                            ),
+                    );
+                  })
                 ],
               )),
-          body: Obx(
-            () => getRawPointerAndKeyBody(Overlay(
-              initialEntries: [
-                OverlayEntry(builder: (context) {
-                  return Container(
-                    color: kColorCanvas,
-                    child: isWebDesktop
-                        ? getBodyForDesktopWithListener()
-                        : SafeArea(
-                            child:
-                                OrientationBuilder(builder: (ctx, orientation) {
-                              if (_currentOrientation != orientation) {
-                                Timer(const Duration(milliseconds: 200), () {
-                                  gFFI.dialogManager
-                                      .resetMobileActionsOverlay(ffi: gFFI);
-                                  _currentOrientation = orientation;
-                                  gFFI.canvasModel.updateViewStyle();
-                                });
-                              }
-                              return Container(
-                                color: MyTheme.canvasColor,
-                                child: inputModel.isPhysicalMouse.value
-                                    ? getBodyForMobile()
-                                    : RawTouchGestureDetectorRegion(
-                                        child: getBodyForMobile(),
-                                        ffi: gFFI,
-                                      ),
-                              );
-                            }),
-                          ),
-                  );
-                })
-              ],
             )),
-          )),
+      ),
     );
   }
 
@@ -1389,10 +1410,24 @@ void showOptions(
                 : null,
             title: e.value.child)))
         .toList();
+    // StaticDesk: idle video throttle, toggleable mid-session.
+    final rxIdleThrottle = VideoThrottle.instance.idleThrottleEnabled.obs;
+    final idleThrottleToggle = Obx(() => CheckboxListTile(
+        contentPadding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        value: rxIdleThrottle.value,
+        onChanged: (v) async {
+          if (v == null) return;
+          await VideoThrottle.instance.setIdleThrottleEnabled(v);
+          rxIdleThrottle.value = v;
+        },
+        title: Text(translate('Reduce frame rate when idle'))));
+
     final toggles = [
       ...cursorTogglesList,
       if (cursorToggles.isNotEmpty) const Divider(color: MyTheme.border),
       ...displayTogglesList,
+      idleThrottleToggle,
     ];
 
     Widget privacyModeWidget = Offstage();

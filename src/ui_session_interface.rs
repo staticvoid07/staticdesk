@@ -507,6 +507,16 @@ impl<T: InvokeUiSession> Session<T> {
         self.send(Data::Message(msg));
     }
 
+    // StaticDesk: same as `set_custom_fps` but does not persist to the peer
+    // config. Used by the mobile battery throttles (background / idle), which
+    // lower the frame rate temporarily and must restore the user's own setting
+    // afterwards - persisting would leave the throttled value behind if the app
+    // is killed while backgrounded.
+    pub fn set_custom_fps_temp(&self, custom_fps: i32) {
+        let msg = self.lc.write().unwrap().set_custom_fps(custom_fps, false);
+        self.send(Data::Message(msg));
+    }
+
     pub fn get_remember(&self) -> bool {
         self.lc.read().unwrap().remember
     }

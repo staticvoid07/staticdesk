@@ -10,6 +10,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hbb/main.dart';
+import 'package:flutter_hbb/mobile/widgets/video_throttle.dart';
 import 'package:flutter_hbb/utils/multi_window_manager.dart';
 import 'package:get/get.dart';
 
@@ -847,6 +848,12 @@ class InputModel {
             e.physicalKey == PhysicalKeyboardKey.audioVolumeDown ||
             e.physicalKey == PhysicalKeyboardKey.audioVolumeMute)) {
       return KeyEventResult.ignored;
+    }
+
+    // StaticDesk: typing counts as activity for the idle video throttle, which
+    // otherwise only sees pointer events.
+    if (isMobile) {
+      VideoThrottle.instance.notifyUserActivity();
     }
 
     if (_relativeMouse.handleKeyEvent(

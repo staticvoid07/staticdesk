@@ -188,6 +188,9 @@ const String kOptionShowVirtualMouseRight = "show-virtual-mouse-right";
 // StaticDesk: whether the modifier/function key bar is shown above the soft
 // keyboard on mobile. Defaults to shown, so unset must read as on.
 const String kOptionShowKeyHelpTools = "show-key-help-tools";
+// StaticDesk: drop the remote frame rate after a period with no input, to save
+// battery on the controlling phone. Off unless explicitly enabled.
+const String kOptionIdleVideoThrottle = "idle-video-throttle";
 const String kOptionAllowAskForNoteAtEndOfConnection = "allow-ask-for-note";
 const String kOptionAllowMonitorSwitchMainToolbar = "allow-monitor-switch-main-toolbar";
 const String kOptionAllowMonitorSwitchMinToolbar = "allow-monitor-switch-min-toolbar";

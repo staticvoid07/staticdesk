@@ -1182,7 +1182,12 @@ impl<T: InvokeUiSession> Remote<T> {
         let custom_fps = self.handler.lc.read().unwrap().custom_fps.clone();
         let custom_fps = custom_fps.lock().unwrap().clone();
         let mut custom_fps = custom_fps.unwrap_or(30);
-        if custom_fps < 5 || custom_fps > 120 {
+        // StaticDesk: `custom_fps` is only a ceiling on the adaptive request
+        // below, and the controlled side already accepts down to `MIN_FPS` (1).
+        // Upstream rejected anything under 5 here, which silently turned a
+        // deliberate low frame rate into 30 - the mobile battery throttles need
+        // 1. Zero is still treated as an unset/garbage value.
+        if custom_fps < 1 || custom_fps > 120 {
             custom_fps = 30;
         }
         let inactive_threshold = 15;
