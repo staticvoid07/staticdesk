@@ -136,6 +136,26 @@ class _RawTouchGestureDetectorRegionState
     _dragThresholdMet = false;
   }
 
+  double get _dragSensitivity {
+    final opt = bind.mainGetLocalOption(key: kOptionDragSensitivity);
+    final v = double.tryParse(opt);
+    if (v == null || v < kMinDragSensitivity || v > kMaxDragSensitivity) {
+      return kDefaultDragSensitivity;
+    }
+    return v;
+  }
+
+  // Scales the finger delta before it is turned into remote cursor movement.
+  // Only applies when this drag actually moves the cursor: with `handleTouch`
+  // the same delta pans the canvas instead, which is a 1:1 gesture and must not
+  // be amplified. The drag threshold deliberately keeps using the raw delta so
+  // the deadzone stays a physical distance on screen.
+  Offset _applyDragSensitivity(Offset delta) {
+    if (handleTouch) return delta;
+    final factor = _dragSensitivity / 100.0;
+    return factor == 1.0 ? delta : delta * factor;
+  }
+
   FFI get ffi => widget.ffi;
   FfiModel get ffiModel => widget.ffiModel;
   InputModel get inputModel => widget.inputModel;
@@ -370,7 +390,8 @@ class _RawTouchGestureDetectorRegionState
     if (!handleTouch) {
       if (isSpecialHoldDragActive) return;
       if (!_admitDragUpdate(d.delta)) return;
-      await ffi.cursorModel.updatePan(d.delta, d.localPosition, handleTouch);
+      await ffi.cursorModel.updatePan(
+          _applyDragSensitivity(d.delta), d.localPosition, handleTouch);
     }
   }
 
@@ -448,11 +469,12 @@ class _RawTouchGestureDetectorRegionState
       return;
     }
     if (!_admitDragUpdate(d.delta)) return;
+    final delta = _applyDragSensitivity(d.delta);
     // In relative mouse mode, send delta directly without position tracking.
     if (inputModel.relativeMouseMode.value) {
-      await inputModel.sendMobileRelativeMouseMove(d.delta.dx, d.delta.dy);
+      await inputModel.sendMobileRelativeMouseMove(delta.dx, delta.dy);
     } else {
-      await ffi.cursorModel.updatePan(d.delta, d.localPosition, handleTouch);
+      await ffi.cursorModel.updatePan(delta, d.localPosition, handleTouch);
     }
   }
 

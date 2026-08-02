@@ -770,6 +770,12 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               onPressed: (context) {
                 changeDragThreshold();
               }),
+          SettingsTile(
+              title: Text(translate('Drag sensitivity')),
+              leading: Icon(Icons.speed),
+              onPressed: (context) {
+                changeDragSensitivity();
+              }),
           if (!_hideNetwork && !_hideProxy)
             SettingsTile(
                 title: Text(translate('Socks5/Http(s) Proxy')),
@@ -1419,10 +1425,64 @@ SettingsTile _getPopupDialogRadioEntry({
 
 /// StaticDesk: how far (in logical pixels) a press-and-drag must travel
 /// before the remote cursor starts following it. See [kOptionDragThreshold].
+void changeDragSensitivity() async {
+  final current = bind.mainGetLocalOption(key: kOptionDragSensitivity);
+  final controller = TextEditingController(
+      text: current.isEmpty
+          ? kDefaultDragSensitivity.toStringAsFixed(0)
+          : current);
+  String errMsg = '';
+  gFFI.dialogManager.show((setState, close, context) {
+    submit() {
+      final text = controller.text.trim();
+      final value = double.tryParse(text);
+      if (value == null ||
+          value < kMinDragSensitivity ||
+          value > kMaxDragSensitivity) {
+        setState(() => errMsg = translate('Invalid value'));
+        return;
+      }
+      bind.mainSetLocalOption(
+          key: kOptionDragSensitivity, value: value.toStringAsFixed(0));
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate('Drag sensitivity')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(translate(
+              'How far the remote cursor moves per unit of finger movement. 100% matches your finger one to one at normal zoom.')),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              errorText: errMsg.isEmpty ? null : errMsg,
+              suffixText: '%',
+              helperText:
+                  '${kMinDragSensitivity.toStringAsFixed(0)} - ${kMaxDragSensitivity.toStringAsFixed(0)}',
+            ),
+            onSubmitted: (_) => submit(),
+          ),
+        ],
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('OK', onPressed: submit),
+      ],
+    );
+  }, backDismiss: true, clickMaskDismiss: true);
+}
+
 void changeDragThreshold() async {
   final current = bind.mainGetLocalOption(key: kOptionDragThreshold);
   final controller = TextEditingController(
-      text: current.isEmpty ? kDefaultDragThreshold.toStringAsFixed(0) : current);
+      text:
+          current.isEmpty ? kDefaultDragThreshold.toStringAsFixed(0) : current);
   String errMsg = '';
   gFFI.dialogManager.show((setState, close, context) {
     submit() {

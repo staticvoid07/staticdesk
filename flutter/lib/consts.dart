@@ -147,6 +147,13 @@ const String kOptionTouchMode = "touch-mode";
 // press-and-drag starts moving the remote cursor.
 const String kOptionDragThreshold = "drag-threshold";
 const double kDefaultDragThreshold = 0.0;
+// StaticDesk: multiplier (percent) applied to the finger delta when dragging
+// the remote cursor on mobile. 100 keeps upstream behaviour, where one logical
+// screen pixel of finger travel moves the cursor one remote pixel at zoom 1.
+const String kOptionDragSensitivity = "drag-sensitivity";
+const double kDefaultDragSensitivity = 100.0;
+const double kMinDragSensitivity = 10.0;
+const double kMaxDragSensitivity = 500.0;
 const String kOptionI444 = "i444";
 const String kOptionSwapLeftRightMouse = "swap-left-right-mouse";
 const String kOptionCodecPreference = "codec-preference";
