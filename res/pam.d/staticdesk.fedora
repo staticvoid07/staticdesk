@@ -1,0 +1,9 @@
+#%PAM-1.0
+# Fedora/RHEL stack. Debian and SUSE aggregate the four phases into
+# common-auth/-account/-session/-password; Fedora uses a single system-auth
+# (a symlink into /etc/authselect), so the Debian file's @include lines refer
+# to stacks that do not exist here and authentication fails outright.
+auth        include     system-auth
+account     include     system-auth
+password    include     system-auth
+session     include     system-auth

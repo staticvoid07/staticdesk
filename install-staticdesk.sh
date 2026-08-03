@@ -105,7 +105,23 @@ cp "$SRC/res/staticdesk-link.desktop" /usr/share/applications/staticdesk-link.de
 update-desktop-database /usr/share/applications || true
 
 echo "== Installing PAM service (login-screen / unattended session access) =="
-cp "$SRC/res/pam.d/staticdesk.debian" /etc/pam.d/staticdesk
+# Pick the stack that actually exists rather than trusting /etc/os-release:
+# Fedora/RHEL aggregate into system-auth, Debian/SUSE into common-*. Installing
+# the wrong one leaves a PAM file referring to stacks that are not there, and
+# authentication fails with nothing obvious in the logs.
+if [ -f /etc/pam.d/system-auth ]; then
+  pam_src="$SRC/res/pam.d/staticdesk.fedora"
+elif [ -f /etc/pam.d/common-auth ]; then
+  pam_src="$SRC/res/pam.d/staticdesk.debian"
+else
+  pam_src=""
+  echo "WARNING: neither /etc/pam.d/system-auth nor common-auth found." >&2
+  echo "         Skipping PAM install; unattended/login-screen auth may not work." >&2
+fi
+if [ -n "$pam_src" ]; then
+  echo "   using $(basename "$pam_src")"
+  cp "$pam_src" /etc/pam.d/staticdesk
+fi
 
 echo "== Installing systemd service =="
 cp "$SRC/res/staticdesk.service" /etc/systemd/system/staticdesk.service
