@@ -76,8 +76,12 @@ fi
 # A build without hwcodec installs and runs fine, it is just silently limited to
 # software encoding - which is easy to do by accident and hard to notice later,
 # so say so plainly rather than failing.
-if ! strings -a "$BUNDLE/lib/librustdesk.so" 2>/dev/null \
-    | grep -q 'scrap/src/common/hwcodec.rs'; then
+# Counted rather than `grep -q`: under `set -o pipefail`, grep -q exits as soon
+# as it matches, strings then dies with SIGPIPE, and the pipeline reports that
+# failure - so the check warned on every build that *did* have hwcodec.
+hwcodec_hits=$(strings -a "$BUNDLE/lib/librustdesk.so" 2>/dev/null \
+  | grep -c 'scrap/src/common/hwcodec.rs' || true)
+if [ "${hwcodec_hits:-0}" -eq 0 ]; then
   echo "WARNING: this build has no hwcodec support." >&2
   echo "         Hardware H264/H265 encoding will be unavailable and peers" >&2
   echo "         will software-decode VP9/AV1. Rebuild with --features hwcodec." >&2
