@@ -589,6 +589,18 @@ class _GeneralState extends State<_General> {
         kOptionKeepAwakeDuringOutgoingSessions,
         isServer: false,
       ));
+      // StaticDesk: default on, so unset must read as enabled rather than going
+      // through option2bool, which treats anything but 'Y' as false.
+      children.add(_OptionCheckBox(
+        context,
+        'Start remote sessions minimized',
+        kOptionStartRemoteMinimized,
+        isServer: false,
+        optGetter: () =>
+            bind.mainGetLocalOption(key: kOptionStartRemoteMinimized) != 'N',
+        optSetter: (k, v) async =>
+            await bind.mainSetLocalOption(key: k, value: v ? 'Y' : 'N'),
+      ));
     }
 
     if (!isWeb && bind.mainShowOption(key: kOptionAllowLinuxHeadless)) {

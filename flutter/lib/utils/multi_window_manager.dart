@@ -8,6 +8,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/main.dart';
 import 'package:flutter_hbb/models/input_model.dart';
+import 'package:flutter_hbb/models/platform_model.dart';
 
 /// must keep the order
 // ignore: constant_identifier_names
@@ -173,6 +174,14 @@ class RustDeskMultiWindowManager {
     }
     if (isMacOS) {
       Future.microtask(() => windowController.show());
+    }
+    // StaticDesk: optionally connect without the window taking over the screen.
+    // Only new remote-desktop windows - a file transfer or terminal is opened in
+    // order to be used straight away, and minimizing a reused window would hide
+    // a session already in front of the user.
+    if (type == WindowType.RemoteDesktop &&
+        bind.mainGetLocalOption(key: kOptionStartRemoteMinimized) != 'N') {
+      Future.microtask(() => windowController.minimize());
     }
     registerActiveWindow(windowId);
     windows.add(windowId);

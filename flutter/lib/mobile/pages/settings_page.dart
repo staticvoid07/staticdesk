@@ -777,6 +777,12 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                 changeDragSensitivity();
               }),
           SettingsTile(
+              title: Text(translate('Toolbar buttons')),
+              leading: Icon(Icons.view_compact),
+              onPressed: (context) {
+                changeToolbarButtons();
+              }),
+          SettingsTile(
               title: Text(translate('Idle frame rate')),
               leading: Icon(Icons.hourglass_empty),
               onPressed: (context) {
@@ -1498,6 +1504,53 @@ void changeBackgroundThrottleFps() => _changeThrottleFps(
     kOptionBackgroundThrottleFps,
     'Background frame rate',
     'Frame rate used while the app is in the background. Audio keeps playing. Set this to your session frame rate to disable it.');
+
+// StaticDesk: pick which buttons appear in the session toolbar. All default to
+// shown, so an unset option must read as on. The collapse chevron is not listed
+// - it is how the toolbar is hidden, so it always stays.
+void changeToolbarButtons() async {
+  final entries = <MapEntry<String, String>>[
+    MapEntry(kOptionShowToolbarClose, 'Close connection'),
+    MapEntry(kOptionShowToolbarDisplay, 'Display settings'),
+    MapEntry(kOptionShowToolbarKeyboard, 'Keyboard'),
+    MapEntry(kOptionShowToolbarGesture, 'Mouse / touch mode'),
+    MapEntry(kOptionShowToolbarMute, 'Mute'),
+    MapEntry(kOptionShowToolbarChat, 'Chat'),
+    MapEntry(kOptionShowToolbarActions, 'Actions'),
+  ];
+  final shown = {
+    for (final e in entries)
+      e.key: (bind.mainGetLocalOption(key: e.key) != 'N').obs
+  };
+  gFFI.dialogManager.show((setState, close, context) {
+    return CustomAlertDialog(
+      title: Text(translate('Toolbar buttons')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(translate(
+              'Choose which buttons appear in the toolbar during a session.')),
+          const SizedBox(height: 4),
+          for (final e in entries)
+            Obx(() => CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  value: shown[e.key]!.value,
+                  title: Text(translate(e.value)),
+                  onChanged: (v) async {
+                    if (v == null) return;
+                    await bind.mainSetLocalOption(
+                        key: e.key, value: v ? 'Y' : 'N');
+                    shown[e.key]!.value = v;
+                  },
+                )),
+        ],
+      ),
+      actions: [dialogButton('Close', onPressed: close, isOutline: true)],
+    );
+  }, backDismiss: true, clickMaskDismiss: true);
+}
 
 void changeIdleThrottleTimeout() async {
   final current = bind.mainGetLocalOption(key: kOptionIdleThrottleTimeout);

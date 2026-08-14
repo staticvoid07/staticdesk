@@ -607,7 +607,13 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   // StaticDesk: audio mute, moved out of the options dialog so it is one tap.
   // Backed by the same per-peer `disable-audio` toggle, which defaults to off
   // (unmuted) and is remembered per peer like every other session toggle.
+  // StaticDesk: toolbar buttons are individually hideable from mobile Settings.
+  // Unset reads as shown so an existing install keeps the full bar.
+  static bool _toolbarButtonShown(String key) =>
+      bind.mainGetLocalOption(key: key) != 'N';
+
   List<Widget> _muteButton(FfiModel ffiModel) {
+    if (!_toolbarButtonShown(kOptionShowToolbarMute)) return [];
     if (gFFI.connType != ConnType.defaultConn) return [];
     if (ffiModel.permissions['audio'] == false) return [];
     final muted =
@@ -637,53 +643,61 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         children: <Widget>[
           Row(
               children: <Widget>[
-                    IconButton(
-                      color: Colors.white,
-                      icon: Icon(Icons.clear),
-                      onPressed: () {
-                        clientClose(sessionId, gFFI);
-                      },
-                    ),
-                    IconButton(
-                      color: Colors.white,
-                      icon: Icon(Icons.tv),
-                      onPressed: () {
-                        setState(() => _showEdit = false);
-                        showOptions(context, widget.id, gFFI.dialogManager);
-                      },
-                    )
+                    if (_toolbarButtonShown(kOptionShowToolbarClose))
+                      IconButton(
+                        color: Colors.white,
+                        icon: Icon(Icons.clear),
+                        onPressed: () {
+                          clientClose(sessionId, gFFI);
+                        },
+                      ),
+                    if (_toolbarButtonShown(kOptionShowToolbarDisplay))
+                      IconButton(
+                        color: Colors.white,
+                        icon: Icon(Icons.tv),
+                        onPressed: () {
+                          setState(() => _showEdit = false);
+                          showOptions(context, widget.id, gFFI.dialogManager);
+                        },
+                      )
                   ] +
                   (isWebDesktop || ffiModel.viewOnly || !ffiModel.keyboard
                       ? []
                       : gFFI.ffiModel.isPeerAndroid
                           ? [
-                              IconButton(
+                              if (_toolbarButtonShown(
+                                  kOptionShowToolbarKeyboard))
+                                IconButton(
+                                    color: Colors.white,
+                                    icon: Icon(Icons.keyboard),
+                                    onPressed: openKeyboard),
+                              if (_toolbarButtonShown(kOptionShowToolbarGesture))
+                                IconButton(
                                   color: Colors.white,
-                                  icon: Icon(Icons.keyboard),
-                                  onPressed: openKeyboard),
-                              IconButton(
-                                color: Colors.white,
-                                icon: const Icon(Icons.build),
-                                onPressed: () => gFFI.dialogManager
-                                    .toggleMobileActionsOverlay(ffi: gFFI),
-                              )
+                                  icon: const Icon(Icons.build),
+                                  onPressed: () => gFFI.dialogManager
+                                      .toggleMobileActionsOverlay(ffi: gFFI),
+                                )
                             ]
                           : [
-                              IconButton(
+                              if (_toolbarButtonShown(
+                                  kOptionShowToolbarKeyboard))
+                                IconButton(
+                                    color: Colors.white,
+                                    icon: Icon(Icons.keyboard),
+                                    onPressed: openKeyboard),
+                              if (_toolbarButtonShown(kOptionShowToolbarGesture))
+                                IconButton(
                                   color: Colors.white,
-                                  icon: Icon(Icons.keyboard),
-                                  onPressed: openKeyboard),
-                              IconButton(
-                                color: Colors.white,
-                                icon: Icon(gFFI.ffiModel.touchMode
-                                    ? Icons.touch_app
-                                    : Icons.mouse),
-                                onPressed: () => setState(
-                                    () => _showGestureHelp = !_showGestureHelp),
-                              ),
+                                  icon: Icon(gFFI.ffiModel.touchMode
+                                      ? Icons.touch_app
+                                      : Icons.mouse),
+                                  onPressed: () => setState(() =>
+                                      _showGestureHelp = !_showGestureHelp),
+                                ),
                             ]) +
                   _muteButton(ffiModel) +
-                  (isWeb
+                  (isWeb || !_toolbarButtonShown(kOptionShowToolbarChat)
                       ? []
                       : <Widget>[
                           futureBuilder(
@@ -703,14 +717,15 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                                   ))
                         ]) +
                   [
-                    IconButton(
-                      color: Colors.white,
-                      icon: Icon(Icons.more_vert),
-                      onPressed: () {
-                        setState(() => _showEdit = false);
-                        showActions(widget.id);
-                      },
-                    ),
+                    if (_toolbarButtonShown(kOptionShowToolbarActions))
+                      IconButton(
+                        color: Colors.white,
+                        icon: Icon(Icons.more_vert),
+                        onPressed: () {
+                          setState(() => _showEdit = false);
+                          showActions(widget.id);
+                        },
+                      ),
                   ]),
           Obx(() => IconButton(
                 color: Colors.white,

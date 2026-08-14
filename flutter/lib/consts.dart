@@ -198,6 +198,20 @@ const String kOptionShowKeyHelpTools = "show-key-help-tools";
 // StaticDesk: drop the remote frame rate after a period with no input, to save
 // battery on the controlling phone. Off unless explicitly enabled.
 const String kOptionIdleVideoThrottle = "idle-video-throttle";
+// StaticDesk: per-button visibility for the mobile session toolbar. All default
+// to shown, so an unset value must read as on. The collapse chevron is
+// deliberately not included - it is how the toolbar is hidden, so removing it
+// would strand the bar on screen.
+const String kOptionShowToolbarClose = "show-toolbar-close";
+const String kOptionShowToolbarDisplay = "show-toolbar-display";
+const String kOptionShowToolbarKeyboard = "show-toolbar-keyboard";
+const String kOptionShowToolbarGesture = "show-toolbar-gesture";
+const String kOptionShowToolbarMute = "show-toolbar-mute";
+const String kOptionShowToolbarChat = "show-toolbar-chat";
+const String kOptionShowToolbarActions = "show-toolbar-actions";
+// StaticDesk: open a new desktop remote-session window minimized, so
+// connecting does not steal the screen.
+const String kOptionStartRemoteMinimized = "start-remote-minimized";
 // StaticDesk: frame rates used by the two battery throttles. 1 is the lowest
 // the controlled side accepts (MIN_FPS in video_qos.rs). Setting either at or
 // above the session's own frame rate leaves that throttle with nothing to do,
