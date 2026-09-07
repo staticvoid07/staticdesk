@@ -3048,6 +3048,11 @@ class CursorModel with ChangeNotifier {
   DateTime _lastPeerMouse = DateTime.now()
       .subtract(Duration(milliseconds: 3000 * kMouseControlTimeoutMSec));
   String peerId = '';
+  // StaticDesk: when locked, dragging moves only the cursor - the canvas never
+  // pans, and the existing clamps keep the cursor inside the visible rect, so it
+  // cannot be dragged out of view. Session-scoped on purpose; it is a
+  // moment-to-moment thing, not a preference.
+  final RxBool canvasLocked = false.obs;
   WeakReference<FFI> parent;
 
   // Only for mobile, touch mode
@@ -3316,13 +3321,14 @@ class CursorModel with ChangeNotifier {
     final r = getVisibleRect();
     var cx = r.center.dx;
     var cy = r.center.dy;
+    final locked = canvasLocked.value;
     var tryMoveCanvasX = false;
     final displayRect = parent.target?.ffiModel.rect;
     if (dx > 0) {
       final maxCanvasCanMove = _displayOriginX +
           (displayRect?.width ?? 1280) -
           r.right.roundToDouble();
-      tryMoveCanvasX = _x + dx > cx && maxCanvasCanMove > 0;
+      tryMoveCanvasX = !locked && _x + dx > cx && maxCanvasCanMove > 0;
       if (tryMoveCanvasX) {
         dx = min(dx, maxCanvasCanMove);
       } else {
@@ -3331,7 +3337,7 @@ class CursorModel with ChangeNotifier {
       }
     } else if (dx < 0) {
       final maxCanvasCanMove = _displayOriginX - r.left.roundToDouble();
-      tryMoveCanvasX = _x + dx < cx && maxCanvasCanMove < 0;
+      tryMoveCanvasX = !locked && _x + dx < cx && maxCanvasCanMove < 0;
       if (tryMoveCanvasX) {
         dx = max(dx, maxCanvasCanMove);
       } else {
@@ -3344,7 +3350,7 @@ class CursorModel with ChangeNotifier {
       final mayCanvasCanMove = _displayOriginY +
           (displayRect?.height ?? 720) -
           r.bottom.roundToDouble();
-      tryMoveCanvasY = _y + dy > cy && mayCanvasCanMove > 0;
+      tryMoveCanvasY = !locked && _y + dy > cy && mayCanvasCanMove > 0;
       if (tryMoveCanvasY) {
         dy = min(dy, mayCanvasCanMove);
       } else {
@@ -3353,7 +3359,7 @@ class CursorModel with ChangeNotifier {
       }
     } else if (dy < 0) {
       final mayCanvasCanMove = _displayOriginY - r.top.roundToDouble();
-      tryMoveCanvasY = _y + dy < cy && mayCanvasCanMove < 0;
+      tryMoveCanvasY = !locked && _y + dy < cy && mayCanvasCanMove < 0;
       if (tryMoveCanvasY) {
         dy = max(dy, mayCanvasCanMove);
       } else {

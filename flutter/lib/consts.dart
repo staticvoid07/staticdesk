@@ -209,9 +209,15 @@ const String kOptionShowToolbarGesture = "show-toolbar-gesture";
 const String kOptionShowToolbarMute = "show-toolbar-mute";
 const String kOptionShowToolbarChat = "show-toolbar-chat";
 const String kOptionShowToolbarActions = "show-toolbar-actions";
+const String kOptionShowToolbarLock = "show-toolbar-lock";
+const String kOptionShowToolbarCollapse = "show-toolbar-collapse";
 // StaticDesk: open a new desktop remote-session window minimized, so
 // connecting does not steal the screen.
 const String kOptionStartRemoteMinimized = "start-remote-minimized";
+// StaticDesk: keep Android's own navigation bar (back / home / recents) on
+// screen during a session instead of going fully immersive. Off by default,
+// so the session still uses the whole screen unless asked otherwise.
+const String kOptionShowAndroidNavBar = "show-android-nav-bar";
 // StaticDesk: frame rates used by the two battery throttles. 1 is the lowest
 // the controlled side accepts (MIN_FPS in video_qos.rs). Setting either at or
 // above the session's own frame rate leaves that throttle with nothing to do,

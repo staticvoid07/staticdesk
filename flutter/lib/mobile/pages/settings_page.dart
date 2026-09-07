@@ -764,6 +764,17 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               setState(() {});
             },
           ),
+          if (isAndroid)
+            SettingsTile.switchTile(
+              title: Text(translate('Show navigation bar during session')),
+              initialValue:
+                  bind.mainGetLocalOption(key: kOptionShowAndroidNavBar) == 'Y',
+              onToggle: (v) async {
+                await bind.mainSetLocalOption(
+                    key: kOptionShowAndroidNavBar, value: v ? 'Y' : 'N');
+                setState(() {});
+              },
+            ),
           SettingsTile(
               title: Text(translate('Drag threshold')),
               leading: Icon(Icons.drag_indicator),
@@ -1506,8 +1517,9 @@ void changeBackgroundThrottleFps() => _changeThrottleFps(
     'Frame rate used while the app is in the background. Audio keeps playing. Set this to your session frame rate to disable it.');
 
 // StaticDesk: pick which buttons appear in the session toolbar. All default to
-// shown, so an unset option must read as on. The collapse chevron is not listed
-// - it is how the toolbar is hidden, so it always stays.
+// shown, so an unset option must read as on. Hiding the collapse chevron leaves
+// the toolbar permanently visible - the floating action button that restores it
+// only appears while the bar is hidden - so it is re-enabled from here.
 void changeToolbarButtons() async {
   final entries = <MapEntry<String, String>>[
     MapEntry(kOptionShowToolbarClose, 'Close connection'),
@@ -1517,6 +1529,8 @@ void changeToolbarButtons() async {
     MapEntry(kOptionShowToolbarMute, 'Mute'),
     MapEntry(kOptionShowToolbarChat, 'Chat'),
     MapEntry(kOptionShowToolbarActions, 'Actions'),
+    MapEntry(kOptionShowToolbarLock, 'Lock screen position'),
+    MapEntry(kOptionShowToolbarCollapse, 'Collapse toolbar'),
   ];
   final shown = {
     for (final e in entries)

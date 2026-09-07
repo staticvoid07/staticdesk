@@ -102,7 +102,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       forceRelay: widget.forceRelay,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+          overlays: _sessionOverlays());
       gFFI.dialogManager
           .showLoading(translate('Connecting...'), onCancel: closeConnection);
     });
@@ -287,7 +288,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
 
   void onSoftKeyboardChanged(bool visible) {
     if (!visible) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+          overlays: _sessionOverlays());
       // [pi.version.isNotEmpty] -> check ready or not, avoid login without soft-keyboard
       if (gFFI.chatModel.chatWindowOverlayEntry == null &&
           gFFI.ffiModel.pi.version.isNotEmpty) {
@@ -607,10 +609,38 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   // StaticDesk: audio mute, moved out of the options dialog so it is one tap.
   // Backed by the same per-peer `disable-audio` toggle, which defaults to off
   // (unmuted) and is remembered per peer like every other session toggle.
+  // StaticDesk: which system overlays stay up during a session. Upstream goes
+  // fully immersive (empty list); with the option on, Android's navigation bar
+  // (back / home / recents) is kept so the session does not swallow it.
+  // `SystemUiOverlay.bottom` is the navigation bar on Android.
+  static List<SystemUiOverlay> _sessionOverlays() =>
+      bind.mainGetLocalOption(key: kOptionShowAndroidNavBar) == 'Y'
+          ? [SystemUiOverlay.bottom]
+          : [];
+
   // StaticDesk: toolbar buttons are individually hideable from mobile Settings.
   // Unset reads as shown so an existing install keeps the full bar.
   static bool _toolbarButtonShown(String key) =>
       bind.mainGetLocalOption(key: key) != 'N';
+
+  // StaticDesk: freeze the canvas so dragging moves only the cursor. The pan
+  // clamps in CursorModel.updatePan already keep the cursor inside the visible
+  // rect, so locked dragging cannot push it out of view.
+  List<Widget> _lockButton() {
+    if (!_toolbarButtonShown(kOptionShowToolbarLock)) return [];
+    return [
+      Obx(() {
+        final locked = gFFI.cursorModel.canvasLocked.value;
+        return IconButton(
+          color: Colors.white,
+          icon: Icon(locked ? Icons.lock : Icons.lock_open),
+          tooltip: translate(locked ? 'Unlock screen position' : 'Lock screen position'),
+          onPressed: () =>
+              gFFI.cursorModel.canvasLocked.value = !locked,
+        );
+      }),
+    ];
+  }
 
   List<Widget> _muteButton(FfiModel ffiModel) {
     if (!_toolbarButtonShown(kOptionShowToolbarMute)) return [];
@@ -639,9 +669,14 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       color: Colors.black,
       child: Row(
         mainAxisSize: MainAxisSize.max,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          Row(
+          // StaticDesk: the button row overflowed once enough buttons were
+          // enabled. Give it the space left over by the collapse chevron and let
+          // it scroll sideways, so no button is ever cut off however many are on.
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
               children: <Widget>[
                     if (_toolbarButtonShown(kOptionShowToolbarClose))
                       IconButton(
@@ -696,6 +731,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                                       _showGestureHelp = !_showGestureHelp),
                                 ),
                             ]) +
+                  _lockButton() +
                   _muteButton(ffiModel) +
                   (isWeb || !_toolbarButtonShown(kOptionShowToolbarChat)
                       ? []
@@ -727,15 +763,18 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                         },
                       ),
                   ]),
-          Obx(() => IconButton(
-                color: Colors.white,
-                icon: Icon(Icons.expand_more),
-                onPressed: gFFI.ffiModel.waitForFirstImage.isTrue
-                    ? null
-                    : () {
-                        setState(() => _showBar = !_showBar);
-                      },
-              )),
+            ),
+          ),
+          if (_toolbarButtonShown(kOptionShowToolbarCollapse))
+            Obx(() => IconButton(
+                  color: Colors.white,
+                  icon: Icon(Icons.expand_more),
+                  onPressed: gFFI.ffiModel.waitForFirstImage.isTrue
+                      ? null
+                      : () {
+                          setState(() => _showBar = !_showBar);
+                        },
+                )),
         ],
       ),
     );
