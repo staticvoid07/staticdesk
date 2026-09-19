@@ -211,6 +211,7 @@ const String kOptionShowToolbarChat = "show-toolbar-chat";
 const String kOptionShowToolbarActions = "show-toolbar-actions";
 const String kOptionShowToolbarLock = "show-toolbar-lock";
 const String kOptionShowToolbarCollapse = "show-toolbar-collapse";
+const String kOptionShowToolbarDisplays = "show-toolbar-displays";
 // StaticDesk: open a new desktop remote-session window minimized, so
 // connecting does not steal the screen.
 const String kOptionStartRemoteMinimized = "start-remote-minimized";

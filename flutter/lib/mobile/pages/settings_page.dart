@@ -1558,6 +1558,7 @@ void changeToolbarButtons() async {
     MapEntry(kOptionShowToolbarChat, 'Chat'),
     MapEntry(kOptionShowToolbarActions, 'Actions'),
     MapEntry(kOptionShowToolbarLock, 'Lock screen position'),
+    MapEntry(kOptionShowToolbarDisplays, 'Monitor selector'),
     MapEntry(kOptionShowToolbarCollapse, 'Collapse toolbar'),
   ];
   final shown = {

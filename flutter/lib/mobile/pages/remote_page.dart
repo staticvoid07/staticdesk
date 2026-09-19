@@ -642,6 +642,65 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     ];
   }
 
+  // StaticDesk: monitor picker in the bar. Same gating as the picker inside
+  // the display-settings dialog: only when the peer exposes more than one
+  // display, not in the stitched all-displays view, and not while privacy mode
+  // forbids switching. The icon carries the current monitor number.
+  List<Widget> _displayButton(FfiModel ffiModel) {
+    if (!_toolbarButtonShown(kOptionShowToolbarDisplays)) return [];
+    final pi = ffiModel.pi;
+    if (pi.displays.length <= 1 || pi.currentDisplay == kAllDisplayValue) {
+      return [];
+    }
+    final privacyModeState = PrivacyModeState.find(widget.id);
+    if (!(privacyModeState.isEmpty ||
+        allowDisplaySwitchInPrivacyMode(pi, privacyModeState.value))) {
+      return [];
+    }
+    final cur = pi.currentDisplay;
+    return [
+      PopupMenuButton<int>(
+        tooltip: translate('Select monitor'),
+        color: Colors.grey[900],
+        onSelected: (i) {
+          if (i == cur) return;
+          openMonitorInTheSameTab(i, gFFI, pi);
+        },
+        itemBuilder: (_) => [
+          for (var i = 0; i < pi.displays.length; ++i)
+            PopupMenuItem<int>(
+              value: i,
+              child: Row(children: [
+                Icon(i == cur ? Icons.check : Icons.desktop_windows,
+                    size: 18, color: Colors.white),
+                const SizedBox(width: 10),
+                Text('${translate('Monitor')} ${i + 1}',
+                    style: const TextStyle(color: Colors.white)),
+              ]),
+            ),
+        ],
+        icon: Stack(clipBehavior: Clip.none, children: [
+          const Icon(Icons.desktop_windows, color: Colors.white),
+          Positioned(
+            right: -6,
+            bottom: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                  color: MyTheme.accent,
+                  borderRadius: BorderRadius.circular(8)),
+              child: Text('${cur + 1}',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ]),
+      ),
+    ];
+  }
+
   List<Widget> _muteButton(FfiModel ffiModel) {
     if (!_toolbarButtonShown(kOptionShowToolbarMute)) return [];
     if (gFFI.connType != ConnType.defaultConn) return [];
@@ -694,7 +753,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                           setState(() => _showEdit = false);
                           showOptions(context, widget.id, gFFI.dialogManager);
                         },
-                      )
+                      ),
+                    ..._displayButton(ffiModel),
                   ] +
                   (isWebDesktop || ffiModel.viewOnly || !ffiModel.keyboard
                       ? []
