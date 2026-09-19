@@ -114,6 +114,11 @@ class FfiModel with ChangeNotifier {
   PeerInfo _pi = PeerInfo();
   int? lastUserDisplay;
   int? pendingMonitorRestore;
+  // StaticDesk: set when a remembered monitor is being restored on connect, so
+  // the saved pan/zoom/cursor for that monitor is applied once the switch has
+  // actually landed (see handleSwitchDisplay) rather than on the first frame
+  // of whatever display the peer started on.
+  int? _restoreCanvasForDisplay;
   Timer? _pendingRestoreTimer;
   Rect? _rect;
 
@@ -252,6 +257,7 @@ class FfiModel with ChangeNotifier {
   clear() {
     _pi = PeerInfo();
     lastUserDisplay = null;
+    _restoreCanvasForDisplay = null;
     _cancelPendingMonitorRestore();
     _secure = null;
     _direct = null;
@@ -858,7 +864,18 @@ class FfiModel with ChangeNotifier {
     _pi.displays[display] = newDisplay;
 
     if (!_pi.isSupportMultiUiSession || _pi.currentDisplay == display) {
-      updateCurDisplay(sessionId);
+      final updated = updateCurDisplay(sessionId);
+      // StaticDesk: the first frame arrived on the peer's default display, so
+      // initializeCursorAndCanvas bailed on the display mismatch. Now that the
+      // remembered monitor is live and its rect is set, apply the saved
+      // pan/zoom/cursor for it.
+      if (_restoreCanvasForDisplay == display) {
+        _restoreCanvasForDisplay = null;
+        final ffi = parent.target;
+        if (ffi != null) {
+          updated.then((_) => initializeCursorAndCanvas(ffi));
+        }
+      }
     }
 
     if (!_pi.isSupportMultiUiSession) {
@@ -1421,6 +1438,21 @@ class FfiModel with ChangeNotifier {
       }
       // After reconnecting, restore the last selected monitor once the canvas is ready.
       // Switching earlier can offset the view if the monitor sizes differ.
+      // StaticDesk: `lastUserDisplay` only lives for the FFI's lifetime, so
+      // upstream restores the monitor across an in-session reconnect but a
+      // brand-new session always opens on the peer's default. Seed it from the
+      // per-peer canvas config, which `RemotePage.dispose` already writes with
+      // the display in use, so a new session opens on the last monitor too.
+      if (isMobile && !isCache && lastUserDisplay == null) {
+        final saved = await getCanvasConfig(sessionId);
+        final sd = saved?['currentDisplay'];
+        if (sd is num) {
+          final idx = sd.toInt();
+          if (idx >= 0 && idx < _pi.displays.length) {
+            lastUserDisplay = idx;
+          }
+        }
+      }
       final last = lastUserDisplay;
       pendingMonitorRestore = (!isCache &&
               last != null &&
@@ -4072,6 +4104,9 @@ class FFI {
     final displays = ffiModel.pi.displays;
     if ((restore == kAllDisplayValue && displays.isNotEmpty) ||
         (restore >= 0 && restore < displays.length)) {
+      if (isMobile && restore != kAllDisplayValue) {
+        ffiModel._restoreCanvasForDisplay = restore;
+      }
       openMonitorInTheSameTab(restore, this, ffiModel.pi,
           recordSelection: false, updateCursorPos: false);
     }
