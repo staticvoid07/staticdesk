@@ -805,6 +805,17 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
                 changePanStartSlop();
               }),
           SettingsTile.switchTile(
+            title: Text(translate('High quality scaling')),
+            leading: Icon(Icons.hd),
+            initialValue:
+                bind.mainGetLocalOption(key: kOptionHighQualityScaling) == 'Y',
+            onToggle: (v) async {
+              await bind.mainSetLocalOption(
+                  key: kOptionHighQualityScaling, value: v ? 'Y' : 'N');
+              setState(() {});
+            },
+          ),
+          SettingsTile.switchTile(
             title: Text(translate('Skip gesture switch delay')),
             leading: Icon(Icons.fast_forward),
             initialValue:

@@ -234,6 +234,11 @@ const int kMaxPanStartSlop = 40;
 // skip-gesture-debounce: start a one-finger drag immediately after another
 // gesture ends, instead of upstream's 200ms settle delay. Unset reads as on.
 const String kOptionSkipGestureDebounce = "skip-gesture-debounce";
+// StaticDesk: mobile frame scaling filter. Upstream paints scaled frames with
+// FilterQuality.medium, which in Skia means bilinear plus mipmaps - and since
+// every frame is a new image, the GPU rebuilds a full mip chain for a 1080p
+// texture per frame. Off (bilinear only) unless explicitly enabled.
+const String kOptionHighQualityScaling = "high-quality-scaling";
 // StaticDesk: frame rates used by the two battery throttles. 1 is the lowest
 // the controlled side accepts (MIN_FPS in video_qos.rs). Setting either at or
 // above the session's own frame rate leaves that throttle with nothing to do,

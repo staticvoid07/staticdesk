@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 
 import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/consts.dart';
+import 'package:flutter_hbb/models/platform_model.dart';
 
 Future<ui.Image?> decodeImageFromPixels(
   Uint8List pixels,
@@ -112,7 +114,13 @@ class ImagePainter extends CustomPainter {
     // https://api.flutter-io.cn/flutter/dart-ui/FilterQuality.html
     var paint = Paint();
     if ((scale - 1.0).abs() > 0.001) {
-      paint.filterQuality = FilterQuality.medium;
+      // StaticDesk: on mobile default to plain bilinear. `medium` adds mipmaps,
+      // which cost a per-frame mip-chain rebuild on the GPU for no visible
+      // gain at phone zoom levels. Desktop keeps upstream's behaviour.
+      paint.filterQuality = isMobile &&
+              bind.mainGetLocalOption(key: kOptionHighQualityScaling) != 'Y'
+          ? FilterQuality.low
+          : FilterQuality.medium;
       if (scale > 10.00000) {
         paint.filterQuality = FilterQuality.high;
       }
