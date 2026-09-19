@@ -217,6 +217,33 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
                 }
+                "set_window_brightness" -> {
+                    // StaticDesk: idle dim. Window-level brightness needs no
+                    // permission and only affects this activity; a negative
+                    // value hands control back to the system setting.
+                    // The argument is a fraction of the *current* brightness,
+                    // not of full: an absolute level can end up brighter than
+                    // what the user is already at (e.g. 20% of full vs. an
+                    // adaptive 8%), which is the opposite of dimming.
+                    val v = (call.arguments as Number).toFloat()
+                    val lp = window.attributes
+                    lp.screenBrightness = if (v < 0f) {
+                        WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                    } else {
+                        val cur = try {
+                            android.provider.Settings.System.getInt(
+                                contentResolver,
+                                android.provider.Settings.System.SCREEN_BRIGHTNESS
+                            ) / 255f
+                        } catch (e: Exception) {
+                            0.5f
+                        }
+                        // 0.0 is BRIGHTNESS_OVERRIDE_OFF on some builds: keep a floor.
+                        (cur * v).coerceIn(0.01f, 1f)
+                    }
+                    window.attributes = lp
+                    result.success(true)
+                }
                 "enable_soft_keyboard" -> {
                     // https://blog.csdn.net/hanye2020/article/details/105553780
                     if (call.arguments as Boolean) {

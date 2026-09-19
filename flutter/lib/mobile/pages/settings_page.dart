@@ -850,6 +850,41 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               onPressed: (context) {
                 changeBackgroundThrottleFps();
               }),
+          if (isAndroid)
+            SettingsTile.switchTile(
+              title: Text(translate('Dim screen when idle')),
+              leading: Icon(Icons.brightness_low),
+              initialValue: bind.mainGetLocalOption(key: kOptionIdleDim) != 'N',
+              onToggle: (v) async {
+                await bind.mainSetLocalOption(
+                    key: kOptionIdleDim, value: v ? 'Y' : 'N');
+                setState(() {});
+              },
+            ),
+          if (isAndroid)
+            SettingsTile(
+                title: Text(translate('Idle dim delay')),
+                leading: Icon(Icons.timer_outlined),
+                onPressed: (context) => _changeIntSetting(
+                    kOptionIdleDimTimeout,
+                    'Idle dim delay',
+                    'Seconds without touching the screen or typing before the screen dims.',
+                    kDefaultIdleDimTimeout,
+                    kMinIdleDimTimeout,
+                    kMaxIdleDimTimeout,
+                    's')),
+          if (isAndroid)
+            SettingsTile(
+                title: Text(translate('Idle dim brightness')),
+                leading: Icon(Icons.brightness_6),
+                onPressed: (context) => _changeIntSetting(
+                    kOptionIdleDimLevel,
+                    'Idle dim brightness',
+                    'Screen brightness while dimmed, as a percentage of the brightness you are currently at.',
+                    kDefaultIdleDimLevel,
+                    kMinIdleDimLevel,
+                    kMaxIdleDimLevel,
+                    '%')),
           if (!_hideNetwork && !_hideProxy)
             SettingsTile(
                 title: Text(translate('Socks5/Http(s) Proxy')),
@@ -1602,6 +1637,53 @@ void changeToolbarButtons() async {
         ],
       ),
       actions: [dialogButton('Close', onPressed: close, isOutline: true)],
+    );
+  }, backDismiss: true, clickMaskDismiss: true);
+}
+
+// StaticDesk: shared editor for integer settings with a fixed range.
+void _changeIntSetting(String key, String title, String hint, int def,
+    int min, int max, String suffix) async {
+  final current = bind.mainGetLocalOption(key: key);
+  final controller =
+      TextEditingController(text: current.isEmpty ? '$def' : current);
+  String errMsg = '';
+  gFFI.dialogManager.show((setState, close, context) {
+    submit() {
+      final value = int.tryParse(controller.text.trim());
+      if (value == null || value < min || value > max) {
+        setState(() => errMsg = translate('Invalid value'));
+        return;
+      }
+      bind.mainSetLocalOption(key: key, value: '$value');
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate(title)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(translate(hint)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              errorText: errMsg.isEmpty ? null : errMsg,
+              suffixText: suffix,
+              helperText: '$min - $max',
+            ),
+            onSubmitted: (_) => submit(),
+          ),
+        ],
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('OK', onPressed: submit),
+      ],
     );
   }, backDismiss: true, clickMaskDismiss: true);
 }

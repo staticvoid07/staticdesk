@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_hbb/consts.dart';
+import 'package:flutter_hbb/mobile/widgets/idle_dim.dart';
 import 'package:flutter_hbb/models/model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 
@@ -15,8 +16,10 @@ import 'package:flutter_hbb/models/platform_model.dart';
 ///    Rust side keeps decoding, even though nothing is rendered;
 ///  * the session is open but untouched for a while (reading, watching).
 ///
-/// Both are handled by temporarily dropping `custom-fps`. Audio is a separate
-/// stream and is never touched, so sound keeps playing while video is throttled.
+/// Both are handled by temporarily dropping `custom-fps`. The same activity
+/// signals also drive IdleDim (screen dimming), which this forwards to. Audio
+/// is a separate stream and is never touched, so sound keeps playing while
+/// video is throttled.
 ///
 /// The fps change goes through `sessionSetCustomFpsTemp`, which does *not*
 /// write to the peer config - if the app is killed while throttled, the user's
@@ -102,6 +105,7 @@ class VideoThrottle {
   }
 
   void attach(FFI ffi) {
+    IdleDim.instance.attach(ffi);
     _ffi = ffi;
     _backgroundThrottled = false;
     _idleThrottled = false;
@@ -111,6 +115,7 @@ class VideoThrottle {
   /// Restores the user's frame rate and drops all state. Safe to call when the
   /// session is already gone - the fps write just no-ops.
   Future<void> detach() async {
+    await IdleDim.instance.detach();
     _idleTimer?.cancel();
     _idleTimer = null;
     final wasThrottled = _throttled;
@@ -123,6 +128,7 @@ class VideoThrottle {
   }
 
   Future<void> onAppBackground() async {
+    await IdleDim.instance.onAppBackground();
     // Backgrounding is also "no input", so stop the idle timer - it would
     // otherwise fire while hidden and fight with the background throttle.
     _idleTimer?.cancel();
@@ -133,6 +139,7 @@ class VideoThrottle {
   }
 
   Future<void> onAppForeground() async {
+    IdleDim.instance.onAppForeground();
     if (!_backgroundThrottled) {
       _restartIdleTimer();
       return;
@@ -146,6 +153,7 @@ class VideoThrottle {
 
   /// Called on any pointer/key activity in the remote session.
   void notifyUserActivity() {
+    IdleDim.instance.notifyUserActivity();
     if (_idleThrottled) {
       _idleThrottled = false;
       unawaited(_applyFps());

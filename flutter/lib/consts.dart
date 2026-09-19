@@ -239,6 +239,17 @@ const String kOptionSkipGestureDebounce = "skip-gesture-debounce";
 // every frame is a new image, the GPU rebuilds a full mip chain for a 1080p
 // texture per frame. Off (bilinear only) unless explicitly enabled.
 const String kOptionHighQualityScaling = "high-quality-scaling";
+// StaticDesk: dim the phone's screen after a period with no input during a
+// session, since the screen is the largest single drain. On unless disabled.
+const String kOptionIdleDim = "idle-dim";
+const String kOptionIdleDimTimeout = "idle-dim-timeout"; // seconds
+const int kDefaultIdleDimTimeout = 30;
+const int kMinIdleDimTimeout = 5;
+const int kMaxIdleDimTimeout = 3600;
+const String kOptionIdleDimLevel = "idle-dim-level"; // percent of current
+const int kDefaultIdleDimLevel = 20;
+const int kMinIdleDimLevel = 1;
+const int kMaxIdleDimLevel = 90;
 // StaticDesk: frame rates used by the two battery throttles. 1 is the lowest
 // the controlled side accepts (MIN_FPS in video_qos.rs). Setting either at or
 // above the session's own frame rate leaves that throttle with nothing to do,
