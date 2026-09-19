@@ -218,6 +218,21 @@ const String kOptionStartRemoteMinimized = "start-remote-minimized";
 // screen during a session instead of going fully immersive. Off by default,
 // so the session still uses the whole screen unless asked otherwise.
 const String kOptionShowAndroidNavBar = "show-android-nav-bar";
+// StaticDesk: mouse-mode responsiveness. Each defaults to the faster behaviour
+// and can be switched back to upstream's.
+//
+// instant-click: send the click on finger-up instead of waiting for the gesture
+// arena, which holds every tap for kDoubleTapTimeout (300ms) in case a second
+// tap follows. Unset reads as on.
+const String kOptionInstantClick = "instant-click";
+// pan-start-slop: logical pixels a finger must travel before a drag starts
+// moving the cursor. 0 = platform default (~16px on Android), i.e. upstream.
+const String kOptionPanStartSlop = "pan-start-slop";
+const int kDefaultPanStartSlop = 6;
+const int kMaxPanStartSlop = 40;
+// skip-gesture-debounce: start a one-finger drag immediately after another
+// gesture ends, instead of upstream's 200ms settle delay. Unset reads as on.
+const String kOptionSkipGestureDebounce = "skip-gesture-debounce";
 // StaticDesk: frame rates used by the two battery throttles. 1 is the lowest
 // the controlled side accepts (MIN_FPS in video_qos.rs). Setting either at or
 // above the session's own frame rate leaves that throttle with nothing to do,

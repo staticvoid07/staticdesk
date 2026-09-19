@@ -787,6 +787,34 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
               onPressed: (context) {
                 changeDragSensitivity();
               }),
+          SettingsTile.switchTile(
+            title: Text(translate('Instant click')),
+            leading: Icon(Icons.touch_app),
+            initialValue:
+                bind.mainGetLocalOption(key: kOptionInstantClick) != 'N',
+            onToggle: (v) async {
+              await bind.mainSetLocalOption(
+                  key: kOptionInstantClick, value: v ? 'Y' : 'N');
+              setState(() {});
+            },
+          ),
+          SettingsTile(
+              title: Text(translate('Drag start distance')),
+              leading: Icon(Icons.open_with),
+              onPressed: (context) {
+                changePanStartSlop();
+              }),
+          SettingsTile.switchTile(
+            title: Text(translate('Skip gesture switch delay')),
+            leading: Icon(Icons.fast_forward),
+            initialValue:
+                bind.mainGetLocalOption(key: kOptionSkipGestureDebounce) != 'N',
+            onToggle: (v) async {
+              await bind.mainSetLocalOption(
+                  key: kOptionSkipGestureDebounce, value: v ? 'Y' : 'N');
+              setState(() {});
+            },
+          ),
           SettingsTile(
               title: Text(translate('Toolbar buttons')),
               leading: Icon(Icons.view_compact),
@@ -1603,6 +1631,52 @@ void changeIdleThrottleTimeout() async {
               suffixText: 's',
               helperText:
                   '$kMinIdleThrottleTimeout - $kMaxIdleThrottleTimeout',
+            ),
+            onSubmitted: (_) => submit(),
+          ),
+        ],
+      ),
+      actions: [
+        dialogButton('Cancel', onPressed: close, isOutline: true),
+        dialogButton('OK', onPressed: submit),
+      ],
+    );
+  }, backDismiss: true, clickMaskDismiss: true);
+}
+
+void changePanStartSlop() async {
+  final current = bind.mainGetLocalOption(key: kOptionPanStartSlop);
+  final controller = TextEditingController(
+      text: current.isEmpty ? '$kDefaultPanStartSlop' : current);
+  String errMsg = '';
+  gFFI.dialogManager.show((setState, close, context) {
+    submit() {
+      final value = int.tryParse(controller.text.trim());
+      if (value == null || value < 0 || value > kMaxPanStartSlop) {
+        setState(() => errMsg = translate('Invalid value'));
+        return;
+      }
+      bind.mainSetLocalOption(key: kOptionPanStartSlop, value: '$value');
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: Text(translate('Drag start distance')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(translate(
+              'How far your finger must travel before a drag starts moving the cursor. Lower is more responsive; too low and a shaky tap becomes a tiny drag. 0 uses the system default (the original behaviour).')),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              errorText: errMsg.isEmpty ? null : errMsg,
+              suffixText: 'px',
+              helperText: '0 - $kMaxPanStartSlop',
             ),
             onSubmitted: (_) => submit(),
           ),

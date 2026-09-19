@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -164,11 +165,113 @@ class _RawTouchGestureDetectorRegionState
 
   @override
   Widget build(BuildContext context) {
-    return RawGestureDetector(
-      child: widget.child,
-      gestures: makeGestures(context),
+    // StaticDesk: the Listener never joins the gesture arena, so it can send
+    // the mouse-mode click the moment the finger lifts (see _icPointerUp)
+    // without disturbing any of the recognizers below it.
+    return Listener(
+      onPointerDown: _icPointerDown,
+      onPointerMove: _icPointerMove,
+      onPointerUp: _icPointerUp,
+      onPointerCancel: _icPointerCancel,
+      child: RawGestureDetector(
+        child: widget.child,
+        gestures: makeGestures(context),
+      ),
     );
   }
+
+  // ---- StaticDesk: instant click (mouse mode) -----------------------------
+  //
+  // Upstream sends the click from `onTap`, which cannot fire until the gesture
+  // arena resolves - and three recognizers (Flutter's DoubleTap, HoldTapMove,
+  // DoubleFinerTap) each hold the arena for kDoubleTapTimeout (300ms) after
+  // finger-up in case a second tap follows. Every single click therefore
+  // landed ~300ms late.
+  //
+  // This tracks raw pointers instead and clicks on finger-up when the touch
+  // was a plain tap: one pointer, barely moved, held under the long-press
+  // threshold, not on a virtual-mouse button. `onTap`/`onDoubleTap` then do
+  // nothing in mouse mode so nothing fires twice. Double-clicks still work -
+  // two fast clicks reach the peer and its own double-click detector does the
+  // rest. Long-press (right click) and two-finger tap keep their arena paths.
+  //
+  // The one semantic change: tap-then-hold-drag now clicks once before the
+  // drag starts, where upstream swallowed that first tap.
+  int _icPointer = -1;
+  int _icActivePointers = 0;
+  Offset _icDownPos = Offset.zero;
+  int _icDownMs = 0;
+  double _icMaxMove = 0;
+  bool _icMultiTouch = false;
+  static const double _kInstantClickSlop = 12.0;
+  // Must stay under kLongPressTimeout (500ms): past that the long-press
+  // recognizer owns the gesture and sends a right click.
+  static const int _kInstantClickMaxMs = 450;
+
+  bool get _instantClickActive =>
+      isMobile &&
+      !handleTouch &&
+      bind.mainGetLocalOption(key: kOptionInstantClick) != 'N';
+
+  void _icPointerDown(PointerDownEvent e) {
+    _icActivePointers++;
+    if (_icActivePointers == 1 && kTouchBasedDeviceKinds.contains(e.kind)) {
+      _icPointer = e.pointer;
+      _icDownPos = e.localPosition;
+      _icDownMs = DateTime.now().millisecondsSinceEpoch;
+      _icMaxMove = 0;
+      _icMultiTouch = false;
+    } else {
+      _icMultiTouch = true;
+    }
+  }
+
+  void _icPointerMove(PointerMoveEvent e) {
+    if (e.pointer != _icPointer) return;
+    _icMaxMove = max(_icMaxMove, (e.localPosition - _icDownPos).distance);
+  }
+
+  void _icPointerCancel(PointerCancelEvent e) {
+    _icActivePointers = max(0, _icActivePointers - 1);
+    if (e.pointer == _icPointer) _icPointer = -1;
+  }
+
+  void _icPointerUp(PointerUpEvent e) {
+    _icActivePointers = max(0, _icActivePointers - 1);
+    if (e.pointer != _icPointer) return;
+    _icPointer = -1;
+    if (!_instantClickActive) return;
+    if (_icMultiTouch) return;
+    if (_icMaxMove > _kInstantClickSlop) return;
+    if (DateTime.now().millisecondsSinceEpoch - _icDownMs >
+        _kInstantClickMaxMs) {
+      return;
+    }
+    // Same gate upstream's onTap uses: blocked rects plus the global block.
+    if (ffi.cursorModel.shouldBlock(_icDownPos.dx, _icDownPos.dy)) return;
+    if (inputModel.shouldIgnoreTouchTap(e.position)) return;
+    unawaited(_sendInstantClick());
+  }
+
+  Future<void> _sendInstantClick() async {
+    await ffi.cursorModel.syncCursorPosition();
+    await inputModel.tap(MouseButtons.left);
+  }
+
+  // Pan-start slop for the one-finger drag recognizer. 0 (or out of range)
+  // means leave the platform default alone, i.e. upstream behaviour.
+  double? get _panStartSlop {
+    if (handleTouch) return null;
+    final v = int.tryParse(bind.mainGetLocalOption(key: kOptionPanStartSlop));
+    final px = v ?? kDefaultPanStartSlop;
+    if (px <= 0 || px > kMaxPanStartSlop) return null;
+    return px.toDouble();
+  }
+
+  bool get _skipGestureDebounce =>
+      !handleTouch &&
+      bind.mainGetLocalOption(key: kOptionSkipGestureDebounce) != 'N';
+  // -------------------------------------------------------------------------
 
   bool isNotTouchBasedDevice() {
     return !kTouchBasedDeviceKinds.contains(lastDeviceKind);
@@ -230,6 +333,8 @@ class _RawTouchGestureDetectorRegionState
       return;
     }
     if (!handleTouch) {
+      // StaticDesk: with instant click on, the click went out on pointer-up.
+      if (_instantClickActive) return;
       // Cannot use `_lastTapDownDetails` because Flutter calls `onTapUp` before `onTap`, clearing the cached details.
       // Using `_lastTapDownPositionForMouseMode` instead.
       if (shouldBlockMouseModeEvent()) {
@@ -270,6 +375,9 @@ class _RawTouchGestureDetectorRegionState
     }
     // Check if the position is in a blocked area when using the mouse mode.
     if (!handleTouch) {
+      // StaticDesk: both taps already clicked on pointer-up; the peer's own
+      // double-click detector turns them into a double-click.
+      if (_instantClickActive) return;
       if (shouldBlockMouseModeEvent()) {
         return;
       }
@@ -634,6 +742,8 @@ class _RawTouchGestureDetectorRegionState
         instance.onOneFingerPanStart =
             (DragStartDetails d) => onOneFingerPanStart(context, d);
         instance
+          ..panStartSlop = _panStartSlop
+          ..skipRestartDebounce = _skipGestureDebounce
           ..isPointerBlocked = ((Offset pos) =>
               ffi.cursorModel.isPointInBlockedRects(pos.dx, pos.dy))
           ..onOneFingerPanUpdate = onOneFingerPanUpdate

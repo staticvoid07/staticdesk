@@ -21,6 +21,26 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
     _init();
   }
 
+  // StaticDesk: ScaleGestureRecognizer refuses to emit updates until the focal
+  // point has moved `panSlop` (touchSlop * 2, ~16 logical px on Android) from
+  // where the finger landed, and those pixels are lost - updates carry the
+  // delta since the previous update, not since touchdown. Every cursor stroke
+  // therefore starts late. When set, this recognizer alone sees a smaller slop;
+  // it is not done through MediaQuery because that would also tighten the tap
+  // recognizer's hit slop and make jittery taps stop clicking.
+  double? panStartSlop;
+
+  @override
+  DeviceGestureSettings? get gestureSettings => panStartSlop == null
+      ? super.gestureSettings
+      : DeviceGestureSettings(touchSlop: panStartSlop! / 2);
+
+  // StaticDesk: skip the 200ms settle delay before a one-finger pan can start
+  // after a different gesture ended. The delay guards against one finger of a
+  // pinch lifting a beat before the other and registering as a pan; with this
+  // on, that tail can nudge the cursor slightly.
+  bool skipRestartDebounce = false;
+
   // StaticDesk: the gesture region is an *ancestor* of the floating virtual
   // mouse widgets, so a pointer landing on one of those buttons still reaches
   // this recognizer and bumps `pointerCount` to 2 - which is interpreted as a
@@ -152,7 +172,7 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
       }
     }
 
-    if (_currentState != GestureState.none) {
+    if (_currentState != GestureState.none && !skipRestartDebounce) {
       _debounceTimer = Timer(Duration(milliseconds: 200), () {
         start(d);
         debugPrint("debounce start oneFingerPan");
