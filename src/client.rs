@@ -1203,6 +1203,15 @@ pub struct AudioHandler {
     needs_restart: Arc<std::sync::atomic::AtomicBool>,
     #[cfg(target_os = "android")]
     last_audio_format: Option<AudioFormat>,
+    // StaticDesk: the output stream is opened when the first audio format
+    // arrives and otherwise runs until the session ends - muting only stops
+    // the peer *sending*, so the phone keeps servicing silent callbacks. Track
+    // the last decoded frame and pause the stream after a quiet spell; the next
+    // frame resumes it.
+    #[cfg(target_os = "android")]
+    last_audio_frame_at: Option<std::time::Instant>,
+    #[cfg(target_os = "android")]
+    audio_paused: bool,
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -1373,10 +1382,19 @@ impl AudioHandler {
         log::info!("Remote input format: {:?}", format0);
         #[allow(unused_mut)]
         let mut config: StreamConfig = config.into();
-        #[cfg(not(target_os = "ios"))]
+        #[cfg(not(any(target_os = "ios", target_os = "android")))]
         {
             // this makes ios audio output not work
             config.buffer_size = cpal::BufferSize::Fixed(64);
+        }
+        #[cfg(target_os = "android")]
+        {
+            // StaticDesk: cpal's oboe backend maps this to the stream's buffer
+            // *capacity*, not the callback size (the callback cadence is the
+            // device burst, which cpal leaves at oboe's default). 64 frames is
+            // below any real burst and invites underruns when the phone is
+            // busy; 20 ms of headroom is imperceptible for desktop audio.
+            config.buffer_size = cpal::BufferSize::Fixed(960);
         }
 
         self.sample_rate = (format0.sample_rate, config.sample_rate.0);
@@ -1433,6 +1451,36 @@ impl AudioHandler {
 
     /// Handle audio frame and play it.
     #[inline]
+    /// StaticDesk: called from the audio thread once a second while no frames
+    /// arrive. Pauses the output stream after a quiet spell so the audio
+    /// callback stops firing; `handle_frame` resumes it.
+    #[cfg(target_os = "android")]
+    pub fn check_idle(&mut self) {
+        const IDLE: std::time::Duration = std::time::Duration::from_secs(3);
+        if self.audio_paused {
+            return;
+        }
+        let Some(last) = self.last_audio_frame_at else {
+            return;
+        };
+        if last.elapsed() < IDLE {
+            return;
+        }
+        if let Some(stream) = self.audio_stream.as_ref() {
+            match stream.pause() {
+                Ok(()) => {
+                    self.audio_paused = true;
+                    log::debug!("Audio idle for {:?}, output stream paused", IDLE);
+                }
+                Err(e) => {
+                    // Not supported on this backend; stop retrying every second.
+                    log::warn!("Failed to pause idle audio stream: {e}");
+                    self.last_audio_frame_at = None;
+                }
+            }
+        }
+    }
+
     pub fn handle_frame(&mut self, frame: AudioFrame) {
         #[cfg(target_os = "android")]
         if self
@@ -1447,6 +1495,18 @@ impl AudioHandler {
         #[cfg(not(target_os = "linux"))]
         if self.audio_stream.is_none() || !self.ready.lock().unwrap().clone() {
             return;
+        }
+        #[cfg(target_os = "android")]
+        {
+            self.last_audio_frame_at = Some(std::time::Instant::now());
+            if self.audio_paused {
+                if let Some(stream) = self.audio_stream.as_ref() {
+                    match stream.play() {
+                        Ok(()) => self.audio_paused = false,
+                        Err(e) => log::warn!("Failed to resume audio stream: {e}"),
+                    }
+                }
+            }
         }
         #[cfg(target_os = "linux")]
         if self.simple.is_none() {
@@ -1567,6 +1627,10 @@ impl AudioHandler {
         )?;
         stream.play()?;
         self.audio_stream = Some(Box::new(stream));
+        #[cfg(target_os = "android")]
+        {
+            self.audio_paused = false;
+        }
         Ok(())
     }
 }
@@ -3056,19 +3120,22 @@ pub fn start_audio_thread() -> MediaSender {
     std::thread::spawn(move || {
         let mut audio_handler = AudioHandler::default();
         loop {
-            if let Ok(data) = audio_receiver.recv() {
-                match data {
-                    MediaData::AudioFrame(af) => {
-                        audio_handler.handle_frame(*af);
-                    }
-                    MediaData::AudioFormat(f) => {
-                        log::debug!("recved audio format, sample rate={}", f.sample_rate);
-                        audio_handler.handle_format(f);
-                    }
-                    _ => {}
+            // StaticDesk: a bounded wait instead of a blocking recv, so the
+            // handler can notice when audio has gone quiet (see check_idle).
+            match audio_receiver.recv_timeout(std::time::Duration::from_secs(1)) {
+                Ok(MediaData::AudioFrame(af)) => {
+                    audio_handler.handle_frame(*af);
                 }
-            } else {
-                break;
+                Ok(MediaData::AudioFormat(f)) => {
+                    log::debug!("recved audio format, sample rate={}", f.sample_rate);
+                    audio_handler.handle_format(f);
+                }
+                Ok(_) => {}
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    #[cfg(target_os = "android")]
+                    audio_handler.check_idle();
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
             }
         }
         log::info!("Audio decoder loop exits");
