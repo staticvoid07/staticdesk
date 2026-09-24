@@ -207,6 +207,8 @@ enum MessageInput {
     Key((KeyEvent, bool)),
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     Pointer((PointerDeviceEvent, i32)),
+    #[cfg(target_os = "linux")]
+    ReclaimDeskflowCursor,
     BlockOn,
     BlockOff,
     #[cfg(all(feature = "flutter", feature = "plugin_framework"))]
@@ -1204,6 +1206,10 @@ impl Connection {
                     MessageInput::Pointer((msg, id)) => {
                         handle_pointer(&msg, id);
                     }
+                    #[cfg(target_os = "linux")]
+                    MessageInput::ReclaimDeskflowCursor => {
+                        reclaim_cursor_from_deskflow();
+                    }
                     MessageInput::BlockOn => {
                         let (ok, msg) = crate::platform::block_input(true);
                         if ok {
@@ -1753,6 +1759,10 @@ impl Connection {
             .unwrap()
             .get(&self.session_key())
             .map(|s| s.last_recv_time.clone());
+        #[cfg(target_os = "linux")]
+        if auth_conn_type == AuthConnType::Remote && self.peer_keyboard_enabled() {
+            self.tx_input.send(MessageInput::ReclaimDeskflowCursor).ok();
+        }
         self.normalize_conn_audit_auth_fields();
         let mut audit = json!({"peer": ((&self.lr.my_id, &self.lr.my_name)), "type": conn_type});
         if self.conn_audit_primary_auth != ConnAuditPrimaryAuth::None {

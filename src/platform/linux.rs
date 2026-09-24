@@ -2199,6 +2199,55 @@ pub fn is_x11() -> bool {
     *IS_X11
 }
 
+/// True when a Deskflow (or Synergy-style) *server* is running for the current user.
+///
+/// While the Deskflow server has moved the cursor to another machine, every mouse and
+/// keyboard event injected on this host is captured and forwarded there, so a remote
+/// session would drive the other PC instead of this one.
+pub fn is_deskflow_server_running() -> bool {
+    let uid = unsafe { hbb_common::libc::getuid() };
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map_or(false, |n| n.bytes().all(|b| b.is_ascii_digit()))
+        {
+            continue;
+        }
+        let Ok(meta) = std::fs::metadata(&path) else {
+            continue;
+        };
+        use std::os::unix::fs::MetadataExt;
+        if meta.uid() != uid {
+            continue;
+        }
+        let Ok(cmdline) = std::fs::read(path.join("cmdline")) else {
+            continue;
+        };
+        let mut args = cmdline
+            .split(|&b| b == 0)
+            .filter(|a| !a.is_empty())
+            .map(|a| String::from_utf8_lossy(a).into_owned());
+        let Some(exe) = args.next() else {
+            continue;
+        };
+        let exe = exe.rsplit('/').next().unwrap_or("").to_owned();
+        let is_server = match exe.as_str() {
+            "deskflow-server" | "synergys" | "barriers" | "input-leaps" => true,
+            "deskflow-core" | "deskflow" | "synergy-core" => args.any(|a| a == "server"),
+            _ => false,
+        };
+        if is_server {
+            return true;
+        }
+    }
+    false
+}
+
 #[inline]
 pub fn is_selinux_enforcing() -> bool {
     match run_cmds("getenforce") {

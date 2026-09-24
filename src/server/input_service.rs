@@ -2326,6 +2326,26 @@ async fn send_sas() -> ResultType<()> {
     Ok(())
 }
 
+/// Bring the cursor home from a Deskflow client when a remote session starts.
+///
+/// Deskflow captures all local input while its cursor sits on another machine, including
+/// what we inject, so the remote peer would otherwise be steering the other PC. Tapping
+/// F24 hits the Deskflow server hotkey (configured as `switchToScreen(<this host>)`) and is
+/// harmless when Deskflow is not running or the cursor is already here: with the default
+/// xkb keymap F24 is the only key above F12 that still yields a plain `F<n>` keysym.
+#[cfg(target_os = "linux")]
+pub fn reclaim_cursor_from_deskflow() {
+    if !crate::platform::is_deskflow_server_running() {
+        return;
+    }
+    // evdev KEY_F24 (194) plus the XKB keycode offset of 8.
+    const F24_RAW_KEYCODE: u16 = 194 + 8;
+    log::info!("Deskflow server detected, tapping F24 to bring the cursor back to this host");
+    if let Ok(mut en) = ENIGO.lock() {
+        en.key_click(enigo::Key::Raw(F24_RAW_KEYCODE));
+    }
+}
+
 #[inline]
 #[cfg(target_os = "linux")]
 pub fn wayland_use_uinput() -> bool {

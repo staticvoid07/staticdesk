@@ -655,6 +655,18 @@ pub mod service {
                     }
                 }
             }
+            DataKeyboard::KeyClick(enigo::Key::Raw(code)) => {
+                if *code < 8 {
+                    log::error!(
+                        "Invalid Raw keycode {} (must be >= 8 due to XKB offset), skipping",
+                        code
+                    );
+                } else {
+                    let down_event = InputEvent::new(EventType::KEY, *code - 8, 1);
+                    let up_event = InputEvent::new(EventType::KEY, *code - 8, 0);
+                    allow_err!(keyboard.emit(&[down_event, up_event]));
+                }
+            }
             DataKeyboard::KeyClick(key) => {
                 if let Key::Layout(chr) = key {
                     input_text_wayland(&chr.to_string(), keyboard);
