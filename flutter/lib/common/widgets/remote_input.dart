@@ -166,6 +166,7 @@ class _RawTouchGestureDetectorRegionState
   InputModel get inputModel => widget.inputModel;
   bool get handleTouch => (isDesktop || isWebDesktop) || ffiModel.touchMode;
   SessionID get sessionId => ffi.sessionId;
+  bool get canvasLocked => isMobile && ffi.canvasModel.locked;
 
   @override
   Widget build(BuildContext context) {
@@ -664,6 +665,8 @@ class _RawTouchGestureDetectorRegionState
       await ffi.cursorModel.updatePan(delta * 2.0, d.focalPoint, handleTouch);
       return;
     }
+
+    if (canvasLocked) return;
 
     if ((isDesktop || isWebDesktop)) {
       final scale = ((d.scale - _scale) * 1000).toInt();
