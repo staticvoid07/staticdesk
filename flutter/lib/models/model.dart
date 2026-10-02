@@ -3085,6 +3085,10 @@ class CursorModel with ChangeNotifier {
   // cannot be dragged out of view. Session-scoped on purpose; it is a
   // moment-to-moment thing, not a preference.
   final RxBool canvasLocked = false.obs;
+  // StaticDesk: when frozen, drags never move the remote cursor - it stays
+  // where it was and the drag pans the view instead (see panCanvasWhileFrozen).
+  // Session-scoped like canvasLocked.
+  final RxBool mouseFrozen = false.obs;
   WeakReference<FFI> parent;
 
   // Only for mobile, touch mode
@@ -3337,6 +3341,15 @@ class CursorModel with ChangeNotifier {
     parent.target?.inputModel.moveMouse(_x, _y);
     parent.target?.canvasModel.reset();
     notifyListeners();
+  }
+
+  // StaticDesk: a drag while the mouse is frozen. The view follows the finger
+  // like a map; the remote cursor is left alone. With the canvas also locked
+  // there is nothing left to move.
+  void panCanvasWhileFrozen(Offset delta) {
+    if (canvasLocked.value) return;
+    parent.target?.canvasModel.panX(delta.dx);
+    parent.target?.canvasModel.panY(delta.dy);
   }
 
   updatePan(Offset delta, Offset localPosition, bool touchMode) async {

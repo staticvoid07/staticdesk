@@ -1604,6 +1604,7 @@ void changeToolbarButtons() async {
     MapEntry(kOptionShowToolbarChat, 'Chat'),
     MapEntry(kOptionShowToolbarActions, 'Actions'),
     MapEntry(kOptionShowToolbarLock, 'Lock screen position'),
+    MapEntry(kOptionShowToolbarFreeze, 'Freeze mouse'),
     MapEntry(kOptionShowToolbarDisplays, 'Monitor selector'),
     MapEntry(kOptionShowToolbarCollapse, 'Collapse toolbar'),
   ];

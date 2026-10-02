@@ -103,6 +103,10 @@ class _RawTouchGestureDetectorRegionState
   // `onDoubleTap()` does not provide the position of the tap event.
   Offset _lastPosOfDoubleTapDown = Offset.zero;
   bool _touchModePanStarted = false;
+  // StaticDesk: latched at the start of a one-finger or hold drag while the
+  // mouse is frozen, so the whole drag pans the view and sends no mouse events,
+  // and a toggle mid-drag cannot leave a button down or swallow its release.
+  bool _frozenDrag = false;
   Offset _doubleFinerTapPosition = Offset.zero;
 
   // For mouse mode, we need to block the events when the cursor is in a blocked area.
@@ -487,6 +491,8 @@ class _RawTouchGestureDetectorRegionState
     if (!handleTouch) {
       if (isSpecialHoldDragActive) return;
       _resetDragThreshold();
+      _frozenDrag = ffi.cursorModel.mouseFrozen.value;
+      if (_frozenDrag) return;
       await inputModel.sendMouse('down', MouseButtons.left);
     }
   }
@@ -498,6 +504,10 @@ class _RawTouchGestureDetectorRegionState
     if (!handleTouch) {
       if (isSpecialHoldDragActive) return;
       if (!_admitDragUpdate(d.delta)) return;
+      if (_frozenDrag) {
+        ffi.cursorModel.panCanvasWhileFrozen(d.delta);
+        return;
+      }
       await ffi.cursorModel.updatePan(
           _applyDragSensitivity(d.delta), d.localPosition, handleTouch);
     }
@@ -509,6 +519,9 @@ class _RawTouchGestureDetectorRegionState
     }
     if (!handleTouch) {
       _resetDragThreshold();
+      final frozen = _frozenDrag;
+      _frozenDrag = false;
+      if (frozen) return;
       await inputModel.sendMouse('up', MouseButtons.left);
     }
   }
@@ -518,6 +531,11 @@ class _RawTouchGestureDetectorRegionState
     _lastTapDownDetails = null;
     lastDeviceKind = d.kind ?? lastDeviceKind;
     if (isNotTouchBasedDevice()) {
+      return;
+    }
+    _frozenDrag = ffi.cursorModel.mouseFrozen.value;
+    if (_frozenDrag) {
+      _resetDragThreshold();
       return;
     }
     if (handleTouch) {
@@ -573,6 +591,11 @@ class _RawTouchGestureDetectorRegionState
     if (ffi.cursorModel.shouldBlock(d.localPosition.dx, d.localPosition.dy)) {
       return;
     }
+    if (_frozenDrag) {
+      if (!_admitDragUpdate(d.delta)) return;
+      ffi.cursorModel.panCanvasWhileFrozen(d.delta);
+      return;
+    }
     if (handleTouch && !_touchModePanStarted) {
       return;
     }
@@ -589,6 +612,10 @@ class _RawTouchGestureDetectorRegionState
   onOneFingerPanEnd(DragEndDetails d) async {
     _touchModePanStarted = false;
     _resetDragThreshold();
+    if (_frozenDrag) {
+      _frozenDrag = false;
+      return;
+    }
     if (isNotTouchBasedDevice()) {
       return;
     }
@@ -609,6 +636,7 @@ class _RawTouchGestureDetectorRegionState
   // double-click problem on iPad with magic mouse.
   onOneFingerPanCancel() {
     _touchModePanStarted = false;
+    _frozenDrag = false;
   }
 
   // scale + pan event

@@ -642,6 +642,25 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     ];
   }
 
+  // StaticDesk: freeze the remote cursor where it is. Drags pan the view
+  // instead (or do nothing while the canvas is also locked); taps still click
+  // wherever the cursor sits.
+  List<Widget> _freezeButton(FfiModel ffiModel) {
+    if (!_toolbarButtonShown(kOptionShowToolbarFreeze)) return [];
+    if (ffiModel.viewOnly || !ffiModel.keyboard) return [];
+    return [
+      Obx(() {
+        final frozen = gFFI.cursorModel.mouseFrozen.value;
+        return IconButton(
+          color: Colors.white,
+          icon: Icon(frozen ? Icons.near_me_disabled : Icons.near_me),
+          tooltip: translate(frozen ? 'Unfreeze mouse' : 'Freeze mouse'),
+          onPressed: () => gFFI.cursorModel.mouseFrozen.value = !frozen,
+        );
+      }),
+    ];
+  }
+
   // StaticDesk: monitor picker in the bar. Same gating as the picker inside
   // the display-settings dialog: only when the peer exposes more than one
   // display, not in the stitched all-displays view, and not while privacy mode
@@ -792,6 +811,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                                 ),
                             ]) +
                   _lockButton() +
+                  _freezeButton(ffiModel) +
                   _muteButton(ffiModel) +
                   (isWeb || !_toolbarButtonShown(kOptionShowToolbarChat)
                       ? []
