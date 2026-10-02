@@ -749,12 +749,11 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         mainAxisSize: MainAxisSize.max,
         children: <Widget>[
           // StaticDesk: the button row overflowed once enough buttons were
-          // enabled. Give it the space left over by the collapse chevron and let
-          // it scroll sideways, so no button is ever cut off however many are on.
+          // enabled. Give it the space left over by the collapse chevron and
+          // wrap onto further lines, so every button stays in view however
+          // many are on.
           Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+            child: Wrap(
               children: <Widget>[
                     if (_toolbarButtonShown(kOptionShowToolbarClose))
                       IconButton(
@@ -843,7 +842,6 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                         },
                       ),
                   ]),
-            ),
           ),
           if (_toolbarButtonShown(kOptionShowToolbarCollapse))
             Obx(() => IconButton(
